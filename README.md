@@ -15,7 +15,19 @@ The project uses two main data files:
 
 ## Visualizations
 
-The project generates two types of Sankey diagrams:
+### Interactive Web Application (Recommended)
+
+The project includes an interactive Dash web application that provides:
+
+- **Real-time filtering** by field, degree level, and institution type
+- **Multiple view modes**: By field of study, institution type, or country
+- **Hover information** showing individual alumni names for each education path
+- **Statistics dashboard** with top transitions and distributions
+- **Responsive design** that works on desktop and tablet devices
+
+### Static Visualizations
+
+The project also generates static HTML Sankey diagrams:
 
 1. **By Field of Study** - Shows transitions between different academic fields (Engineering/Tech, Business, Sciences, etc.)
 2. **By Institution Type** - Shows transitions between institution types (University, Technical University, Business School, etc.)
@@ -30,7 +42,30 @@ Install the required dependencies:
 pip install -r requirements.txt
 ```
 
-### Running the Visualization
+### Running the Interactive Web Application (Recommended)
+
+**Option 1: Using the launch script**
+
+```bash
+./run_app.sh
+```
+
+**Option 2: Direct Python execution**
+
+```bash
+python app.py
+```
+
+Then open your browser and navigate to: **http://localhost:8050**
+
+**Features:**
+- **Filters**: Use dropdowns to filter by field, degree level, or institution type
+- **View Modes**: Switch between field of study, institution type, or country views
+- **Hover Information**: Hover over any flow to see names of individual alumni following that path
+- **Statistics**: View real-time statistics in the right panel
+- **Reset**: Click "Reset All Filters" to clear all filters
+
+### Generating Static Visualizations
 
 #### Basic Version
 
@@ -50,7 +85,7 @@ This generates two HTML files:
 - `education_paths_by_field.html` - Education paths by field of study
 - `education_paths_by_institution.html` - Education paths by institution type
 
-### Viewing Results
+### Viewing Static Results
 
 Open any of the generated HTML files in a web browser to view the interactive Sankey diagrams. The diagrams support:
 
@@ -72,20 +107,30 @@ Based on the analysis of 1,037 CDTM alumni with education data:
 ```
 cdtm-paths/
 ├── data/
-│   ├── cdtm_alumni_consolidated.json
-│   └── unique_schools_normalized.json
-├── visualize_education_paths.py          # Basic visualization script
-├── visualize_education_paths_enhanced.py # Enhanced visualization with multiple views
-├── requirements.txt                      # Python dependencies
-└── README.md                            # This file
+│   ├── cdtm_alumni_consolidated.json       # Alumni education and career data
+│   └── unique_schools_normalized.json      # Normalized school information
+├── app.py                                   # Interactive Dash web application
+├── run_app.sh                               # Launch script for web app
+├── visualize_education_paths.py            # Basic static visualization script
+├── visualize_education_paths_enhanced.py   # Enhanced static visualization
+├── requirements.txt                        # Python dependencies
+└── README.md                               # This file
 ```
 
 ## Technical Details
 
 The visualization uses:
-- **Plotly** for creating interactive Sankey diagrams
-- **Python 3** for data processing and analysis
+- **Dash** - Python framework for building interactive web applications
+- **Plotly** - For creating interactive Sankey diagrams
+- **Bootstrap** - For responsive UI components (via dash-bootstrap-components)
+- **Python 3** - For data processing and analysis
 - Custom categorization logic to group degrees and fields into meaningful categories
+
+**Technologies:**
+- Frontend: Dash + Plotly + Bootstrap
+- Backend: Python 3
+- Data Format: JSON
+- Visualization: Interactive Sankey Diagrams
 
 ## License
 
