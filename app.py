@@ -424,7 +424,7 @@ app.layout = dbc.Container([
 
                     dbc.Row([
                         dbc.Col([
-                            html.Label("Filter by Institution:", className="fw-bold", className_name="mt-3"),
+                            html.Label("Filter by Institution:", className="fw-bold mt-3"),
                             dcc.Dropdown(
                                 id='institution-filter',
                                 options=[
