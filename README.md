@@ -4,7 +4,7 @@ This project visualizes the education paths of CDTM (Center for Digital Technolo
 
 ## Overview
 
-The visualization shows how CDTM alumni progress through different educational stages, from Bachelor's degrees through Master's and Doctoral programs. The diagrams illustrate common education pathways and transitions between fields of study and institution types.
+The visualization uses a flow-style diagram with sigmoid curves to show how CDTM alumni progress through different educational stages, from Bachelor's degrees through Master's and Doctoral programs. Each line represents one alumni's education journey, with colors indicating their primary field of study. This creates a beautiful, organic visualization that reveals common pathways and transitions at a glance.
 
 ## Data
 
@@ -15,22 +15,25 @@ The project uses two main data files:
 
 ## Visualizations
 
-### Interactive Web Application (Recommended)
+### Interactive Web Application (Recommended) - Flow Style
 
-The project includes an interactive Dash web application that provides:
+The main application uses a **flow-style visualization** with sigmoid curves, similar to professional pathway diagrams. Features include:
 
-- **Real-time filtering** by field, degree level, and institution type
-- **Multiple view modes**: By field of study, institution type, or country
-- **Hover information** showing individual alumni names for each education path
-- **Statistics dashboard** with top transitions and distributions
+- **Beautiful flow diagram** with smooth curves showing individual paths
+- **Color coding** by primary field of study (Blue: Engineering/Tech, Red: Business, Green: Sciences)
+- **Volume visualization** through line density - thicker areas show more common paths
+- **Real-time filtering** by field and degree level
+- **Statistics dashboard** showing distribution and path characteristics
 - **Responsive design** that works on desktop and tablet devices
 
 ### Static Visualizations
 
-The project also generates static HTML Sankey diagrams:
+The project also includes scripts to generate static visualizations:
 
-1. **By Field of Study** - Shows transitions between different academic fields (Engineering/Tech, Business, Sciences, etc.)
-2. **By Institution Type** - Shows transitions between institution types (University, Technical University, Business School, etc.)
+1. **Flow-Style PNG** (`visualize_flow_style.py`) - Creates high-resolution flow diagrams
+2. **Sankey Diagrams** (`visualize_education_paths_enhanced.py`) - Traditional Sankey charts with:
+   - By Field of Study view
+   - By Institution Type view
 
 ## Usage
 
@@ -59,31 +62,34 @@ python app.py
 Then open your browser and navigate to: **http://localhost:8050**
 
 **Features:**
-- **Filters**: Use dropdowns to filter by field, degree level, or institution type
-- **View Modes**: Switch between field of study, institution type, or country views
-- **Hover Information**: Hover over any flow to see names of individual alumni following that path
-- **Statistics**: View real-time statistics in the right panel
-- **Reset**: Click "Reset All Filters" to clear all filters
+- **Flow Visualization**: Beautiful sigmoid curves showing individual education paths
+- **Color Coding**: Blue (Engineering/Tech), Red (Business), Green (Sciences), Gray (Other)
+- **Filters**: Filter by primary field or specific degree level
+- **Statistics**: View real-time statistics including path lengths and field distribution
+- **Volume Effect**: Line density shows how common each pathway is
+- **Reset**: Click "Reset Filters" to clear all filters and see the full dataset
 
 ### Generating Static Visualizations
 
-#### Basic Version
+#### Flow-Style Diagram (Recommended)
 
 ```bash
-python visualize_education_paths.py
+python visualize_flow_style.py
 ```
 
-This generates `education_paths_sankey.html`
+This generates `education_flow_viz.png` - a high-resolution flow diagram with sigmoid curves
 
-#### Enhanced Version
+#### Sankey Diagrams
 
 ```bash
-python visualize_education_paths_enhanced.py
+python visualize_education_paths.py  # Basic version
+python visualize_education_paths_enhanced.py  # Enhanced version
 ```
 
-This generates two HTML files:
-- `education_paths_by_field.html` - Education paths by field of study
-- `education_paths_by_institution.html` - Education paths by institution type
+These generate interactive HTML Sankey diagrams:
+- `education_paths_sankey.html` - Basic Sankey diagram
+- `education_paths_by_field.html` - By field of study
+- `education_paths_by_institution.html` - By institution type
 
 ### Viewing Static Results
 
@@ -109,28 +115,39 @@ cdtm-paths/
 ├── data/
 │   ├── cdtm_alumni_consolidated.json       # Alumni education and career data
 │   └── unique_schools_normalized.json      # Normalized school information
-├── app.py                                   # Interactive Dash web application
+├── app.py                                   # Interactive Dash web app (flow style)
+├── app_sankey.py                            # Alternative Sankey-based web app
 ├── run_app.sh                               # Launch script for web app
-├── visualize_education_paths.py            # Basic static visualization script
-├── visualize_education_paths_enhanced.py   # Enhanced static visualization
+├── visualize_flow_style.py                  # Flow-style static visualization
+├── visualize_education_paths.py            # Basic Sankey visualization script
+├── visualize_education_paths_enhanced.py   # Enhanced Sankey visualizations
 ├── requirements.txt                        # Python dependencies
-└── README.md                               # This file
+├── README.md                               # This file
+└── QUICKSTART.md                           # Quick start guide
 ```
 
 ## Technical Details
 
 The visualization uses:
+- **Matplotlib** - For creating flow-style diagrams with sigmoid curves
 - **Dash** - Python framework for building interactive web applications
-- **Plotly** - For creating interactive Sankey diagrams
+- **NumPy** - For mathematical curve generation and data processing
 - **Bootstrap** - For responsive UI components (via dash-bootstrap-components)
 - **Python 3** - For data processing and analysis
 - Custom categorization logic to group degrees and fields into meaningful categories
 
+**Visualization Techniques:**
+- **Sigmoid curves** - Smooth S-curves between education stages
+- **Y-axis jitter** - Creates volume effect by slightly randomizing positions
+- **Alpha blending** - Transparent overlapping lines show density
+- **Color coding** - Different fields shown in distinct colors
+- **Dynamic node sizing** - Nodes sized based on traffic volume
+
 **Technologies:**
-- Frontend: Dash + Plotly + Bootstrap
-- Backend: Python 3
+- Frontend: Dash + Matplotlib + Bootstrap
+- Backend: Python 3 + NumPy
 - Data Format: JSON
-- Visualization: Interactive Sankey Diagrams
+- Visualization: Flow diagrams with sigmoid curves, Sankey diagrams (alternative)
 
 ## License
 

@@ -1,5 +1,6 @@
 # Generated visualization files
 *.html
+*.png
 
 # Python
 __pycache__/
