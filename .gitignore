@@ -2,6 +2,10 @@
 *.html
 *.png
 
+# Backup files
+*_backup.py
+*_old_backup.py
+
 # Python
 __pycache__/
 *.py[cod]
