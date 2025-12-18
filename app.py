@@ -158,16 +158,10 @@ def extract_paths(alumni_data: List[Dict], filters: Dict = None) -> List[Dict]:
 
         # Insert CDTM node if we found a position
         if cdtm_entry and insert_position is not None and cdtm_level:
-            # Determine CDTM's "field" based on the primary field of the path
-            primary_field = None
-            for entry in all_entries:
-                if entry['field'] != "Other":
-                    primary_field = entry['field']
-                    break
-
+            # CDTM is a single independent node - no field association
             cdtm_node = {
                 'degree': 'CDTM',
-                'field': primary_field or "Other",
+                'field': 'CDTM',  # Special marker so it creates "CDTM" key
                 'institution': 'CDTM',
                 'is_cdtm': True,
                 'cdtm_level': cdtm_level
@@ -204,7 +198,7 @@ def extract_paths(alumni_data: List[Dict], filters: Dict = None) -> List[Dict]:
 
 
 def define_stations() -> Dict[str, Tuple[float, float]]:
-    """Define the (x, y) positions for each education stage node. NOW INCLUDING CDTM!"""
+    """Define the (x, y) positions for each education stage node. NOW INCLUDING ONE CENTRAL CDTM NODE!"""
     stations = {
         # STAGE 1: BACHELOR'S (x ≈ 0-1)
         "Bachelor's|Engineering/Tech": (0.5, 6.5),
@@ -217,11 +211,8 @@ def define_stations() -> Dict[str, Tuple[float, float]]:
         "Diploma|Business": (2.0, 3.5),
         "Diploma|Other": (2.0, 1.5),
 
-        # STAGE 2.5: CDTM (x ≈ 3) - Between Bachelor's/Diploma and Master's
-        "CDTM|Engineering/Tech": (3.0, 6.5),
-        "CDTM|Business": (3.0, 4.5),
-        "CDTM|Sciences": (3.0, 2.5),
-        "CDTM|Other": (3.0, 1.0),
+        # STAGE 2.5: CDTM (x ≈ 3) - ONE CENTRAL NODE FOR ALL ALUMNI
+        "CDTM": (3.0, 4.0),  # Single CDTM node in the middle
 
         # STAGE 3: MASTER'S (x ≈ 4-5)
         "Master's|Engineering/Tech": (4.5, 6.8),
@@ -292,9 +283,16 @@ def create_flow_visualization(paths: List[Dict]) -> str:
             current = path_nodes[i]
             next_node = path_nodes[i + 1]
 
-            # Build station keys
-            current_key = f"{current['degree']}|{current['field']}"
-            next_key = f"{next_node['degree']}|{next_node['field']}"
+            # Build station keys - CDTM is special and doesn't use field
+            if current.get('is_cdtm'):
+                current_key = "CDTM"
+            else:
+                current_key = f"{current['degree']}|{current['field']}"
+
+            if next_node.get('is_cdtm'):
+                next_key = "CDTM"
+            else:
+                next_key = f"{next_node['degree']}|{next_node['field']}"
 
             # Skip if station doesn't exist
             if current_key not in stations or next_key not in stations:
@@ -336,17 +334,17 @@ def create_flow_visualization(paths: List[Dict]) -> str:
         if count == 0:
             continue  # Don't draw unused stations
 
-        # Size based on volume
-        node_size = min(2000, 500 + count * 2)
+        # Size based on volume (CDTM will be very large!)
+        node_size = min(3000, 500 + count * 2)
 
-        # Special styling for CDTM nodes
-        is_cdtm_node = station_name.startswith("CDTM|")
+        # Special styling for CDTM node
+        is_cdtm_node = (station_name == "CDTM")
 
         if is_cdtm_node:
-            # CDTM nodes get special orange color
+            # CDTM node gets special orange color and larger size
             node_color = '#fff7ed'  # Light orange background
             edge_color = field_colors["CDTM"]
-            edge_width = 3
+            edge_width = 4
         else:
             node_color = 'white'
             edge_color = '#1e293b'
@@ -360,19 +358,20 @@ def create_flow_visualization(paths: List[Dict]) -> str:
                   edgecolors=edge_color, linewidth=edge_width, zorder=11)
 
         # Label
-        degree, field = station_name.split('|')
         if is_cdtm_node:
-            label = f"CDTM\n{field}"
+            label = "CDTM"
         else:
+            degree, field = station_name.split('|')
             label = f"{degree}\n{field}"
 
         # Alternate text position to avoid overlap
         text_y_offset = 0.35 if sy > 3.5 else -0.35
 
         label_color = field_colors["CDTM"] if is_cdtm_node else '#1e293b'
+        label_size = 10 if is_cdtm_node else 8
 
         ax.text(sx, sy + text_y_offset, label,
-               ha='center', va='center', fontsize=8,
+               ha='center', va='center', fontsize=label_size,
                fontweight='bold', color=label_color, zorder=12,
                bbox=dict(boxstyle='round,pad=0.3', facecolor='white',
                         edgecolor='none', alpha=0.9))
