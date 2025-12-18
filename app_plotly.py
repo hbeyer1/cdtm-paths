@@ -256,9 +256,15 @@ def create_plotly_figure(paths: List[Dict]):
                 x=xs,
                 y=ys,
                 mode='lines',
-                line=dict(color=line_color, width=1),
+                line=dict(color=line_color, width=2.5),  # Thicker for easier hover
                 opacity=line_alpha,
                 hovertemplate=f'<b>{alumni_name}</b><br>{headline}<br><extra></extra>',
+                hoverlabel=dict(
+                    bgcolor=line_color,
+                    font_size=13,
+                    font_family="Arial",
+                    font_color="white"
+                ),
                 showlegend=False
             ))
 
@@ -311,7 +317,8 @@ def create_plotly_figure(paths: List[Dict]):
         plot_bgcolor='white',
         paper_bgcolor='white',
         height=700,
-        hovermode='closest'
+        hovermode='closest',
+        hoverdistance=20  # Increased hover detection distance
     )
 
     return fig
