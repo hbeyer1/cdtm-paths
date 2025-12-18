@@ -2,6 +2,7 @@
 """
 Interactive Dash web application for visualizing CDTM alumni education paths
 using flow-style matplotlib visualization with sigmoid curves.
+NOW INCLUDING CDTM NODES!
 """
 
 import json
@@ -91,8 +92,13 @@ def get_institution_type(school_name: str) -> str:
     return 'University'
 
 
+def is_cdtm(school_name: str) -> bool:
+    """Check if school is CDTM."""
+    return 'CDTM' in school_name or 'Center for Digital Technology' in school_name
+
+
 def extract_paths(alumni_data: List[Dict], filters: Dict = None) -> List[Dict]:
-    """Extract education paths from alumni data with optional filtering."""
+    """Extract education paths from alumni data, INCLUDING CDTM, with optional filtering."""
     paths = []
 
     for person in alumni_data:
@@ -100,32 +106,82 @@ def extract_paths(alumni_data: List[Dict], filters: Dict = None) -> List[Dict]:
         if not education_path:
             continue
 
-        # Build path
-        path_nodes = []
-        primary_field = None
+        # First pass: collect all education entries
+        all_entries = []
+        cdtm_entry = None
 
         for edu in education_path:
             school = edu.get('school', '')
             degree = edu.get('degree', '')
             field = edu.get('field', '')
 
-            # Skip CDTM
-            if 'CDTM' in school or 'Center for Digital Technology' in school:
-                continue
+            if is_cdtm(school):
+                cdtm_entry = edu  # Save CDTM for later
+            else:
+                degree_level = categorize_degree(degree, field)
+                field_category = categorize_field(field, degree)
+                institution_type = get_institution_type(school)
 
-            degree_level = categorize_degree(degree, field)
-            field_category = categorize_field(field, degree)
-            institution_type = get_institution_type(school)
+                all_entries.append({
+                    'degree': degree_level,
+                    'field': field_category,
+                    'institution': institution_type,
+                    'is_cdtm': False
+                })
 
-            # Track primary field (first non-Other field)
-            if primary_field is None and field_category != "Other":
-                primary_field = field_category
+        if not all_entries:
+            continue
 
-            path_nodes.append({
-                'degree': degree_level,
-                'field': field_category,
-                'institution': institution_type
-            })
+        # Determine where CDTM fits in the path
+        cdtm_level = None
+        insert_position = None
+
+        # Find Bachelor's or Diploma
+        for i, entry in enumerate(all_entries):
+            if entry['degree'] in ["Bachelor's", "Diploma"]:
+                insert_position = i + 1
+                cdtm_level = "Bachelor's Level"
+                break
+
+        # If no Bachelor's found, check for Master's
+        if insert_position is None:
+            for i, entry in enumerate(all_entries):
+                if entry['degree'] == "Master's":
+                    insert_position = i + 1
+                    cdtm_level = "Master's Level"
+                    break
+
+        # If still no position, put CDTM at the beginning
+        if insert_position is None and len(all_entries) > 0:
+            insert_position = 1 if len(all_entries) > 1 else 0
+            cdtm_level = "Bachelor's Level"
+
+        # Insert CDTM node if we found a position
+        if cdtm_entry and insert_position is not None and cdtm_level:
+            # Determine CDTM's "field" based on the primary field of the path
+            primary_field = None
+            for entry in all_entries:
+                if entry['field'] != "Other":
+                    primary_field = entry['field']
+                    break
+
+            cdtm_node = {
+                'degree': 'CDTM',
+                'field': primary_field or "Other",
+                'institution': 'CDTM',
+                'is_cdtm': True,
+                'cdtm_level': cdtm_level
+            }
+
+            # Insert CDTM into the path
+            all_entries.insert(insert_position, cdtm_node)
+
+        # Determine primary field
+        primary_field = None
+        for entry in all_entries:
+            if entry['field'] != "Other" and not entry.get('is_cdtm'):
+                primary_field = entry['field']
+                break
 
         # Apply filters
         if filters:
@@ -134,12 +190,12 @@ def extract_paths(alumni_data: List[Dict], filters: Dict = None) -> List[Dict]:
                     continue
 
             if filters.get('degree') and filters['degree'] != 'All':
-                if not any(node['degree'] == filters['degree'] for node in path_nodes):
+                if not any(node['degree'] == filters['degree'] for node in all_entries):
                     continue
 
-        if len(path_nodes) >= 2:  # Need at least 2 nodes for a path
+        if len(all_entries) >= 2:  # Need at least 2 nodes for a path
             paths.append({
-                'nodes': path_nodes,
+                'nodes': all_entries,
                 'primary_field': primary_field or "Other",
                 'name': person.get('full_name', 'Unknown')
             })
@@ -148,7 +204,7 @@ def extract_paths(alumni_data: List[Dict], filters: Dict = None) -> List[Dict]:
 
 
 def define_stations() -> Dict[str, Tuple[float, float]]:
-    """Define the (x, y) positions for each education stage node."""
+    """Define the (x, y) positions for each education stage node. NOW INCLUDING CDTM!"""
     stations = {
         # STAGE 1: BACHELOR'S (x ≈ 0-1)
         "Bachelor's|Engineering/Tech": (0.5, 6.5),
@@ -160,6 +216,12 @@ def define_stations() -> Dict[str, Tuple[float, float]]:
         "Diploma|Engineering/Tech": (2.0, 6.0),
         "Diploma|Business": (2.0, 3.5),
         "Diploma|Other": (2.0, 1.5),
+
+        # STAGE 2.5: CDTM (x ≈ 3) - Between Bachelor's/Diploma and Master's
+        "CDTM|Engineering/Tech": (3.0, 6.5),
+        "CDTM|Business": (3.0, 4.5),
+        "CDTM|Sciences": (3.0, 2.5),
+        "CDTM|Other": (3.0, 1.0),
 
         # STAGE 3: MASTER'S (x ≈ 4-5)
         "Master's|Engineering/Tech": (4.5, 6.8),
@@ -173,8 +235,8 @@ def define_stations() -> Dict[str, Tuple[float, float]]:
         "Doctorate|Other": (7.0, 2.5),
 
         # STAGE 5: OTHER/CERTIFICATES (various positions)
-        "Other|Engineering/Tech": (3.0, 0.5),
-        "Other|Business": (3.5, 0.3),
+        "Other|Engineering/Tech": (3.5, 0.5),
+        "Other|Business": (4.0, 0.3),
         "Other|Sciences": (5.5, 0.5),
         "Other|Other": (6.0, 0.3),
     }
@@ -209,7 +271,8 @@ def create_flow_visualization(paths: List[Dict]) -> str:
         "Engineering/Tech": "#3b82f6",  # Blue
         "Business": "#ef4444",           # Red
         "Sciences": "#10b981",           # Green
-        "Other": "#94a3b8"               # Gray
+        "Other": "#94a3b8",              # Gray
+        "CDTM": "#f59e0b"                # Orange for CDTM
     }
 
     # Setup figure
@@ -251,8 +314,16 @@ def create_flow_visualization(paths: List[Dict]) -> str:
                 (x2, y2 + y_jitter_end)
             )
 
+            # Use orange color if going through CDTM
+            if current.get('is_cdtm') or next_node.get('is_cdtm'):
+                plot_color = field_colors["CDTM"]
+                alpha = 0.12
+            else:
+                plot_color = color
+                alpha = 0.08
+
             # Plot with transparency for overlapping effect
-            ax.plot(xs, ys, color=color, alpha=0.08, linewidth=1.2, zorder=1)
+            ax.plot(xs, ys, color=plot_color, alpha=alpha, linewidth=1.2, zorder=1)
 
             # Track station usage
             station_counts[current_key] += 1
@@ -265,27 +336,46 @@ def create_flow_visualization(paths: List[Dict]) -> str:
         if count == 0:
             continue  # Don't draw unused stations
 
-        # Size based on volume (but keep reasonable)
-        node_size = min(1500, 400 + count * 2)
+        # Size based on volume
+        node_size = min(2000, 500 + count * 2)
 
-        # White background circle
-        ax.scatter(sx, sy, s=node_size, color='white', zorder=10, edgecolors='none')
+        # Special styling for CDTM nodes
+        is_cdtm_node = station_name.startswith("CDTM|")
+
+        if is_cdtm_node:
+            # CDTM nodes get special orange color
+            node_color = '#fff7ed'  # Light orange background
+            edge_color = field_colors["CDTM"]
+            edge_width = 3
+        else:
+            node_color = 'white'
+            edge_color = '#1e293b'
+            edge_width = 2
+
+        # Background circle
+        ax.scatter(sx, sy, s=node_size, color=node_color, zorder=10, edgecolors='none')
 
         # Outline
         ax.scatter(sx, sy, s=node_size, facecolors='none',
-                  edgecolors='#1e293b', linewidth=2, zorder=11)
+                  edgecolors=edge_color, linewidth=edge_width, zorder=11)
 
         # Label
         degree, field = station_name.split('|')
-        label = f"{degree}\n{field}"
+        if is_cdtm_node:
+            label = f"CDTM\n{field}"
+        else:
+            label = f"{degree}\n{field}"
 
         # Alternate text position to avoid overlap
         text_y_offset = 0.35 if sy > 3.5 else -0.35
+
+        label_color = field_colors["CDTM"] if is_cdtm_node else '#1e293b'
+
         ax.text(sx, sy + text_y_offset, label,
                ha='center', va='center', fontsize=8,
-               fontweight='bold', color='#1e293b', zorder=12,
+               fontweight='bold', color=label_color, zorder=12,
                bbox=dict(boxstyle='round,pad=0.3', facecolor='white',
-                        edgecolor='none', alpha=0.8))
+                        edgecolor='none', alpha=0.9))
 
     # STEP 3: Add legend
     legend_elements = [
@@ -295,6 +385,8 @@ def create_flow_visualization(paths: List[Dict]) -> str:
                       label='Business', alpha=0.7),
         mpatches.Patch(facecolor=field_colors["Sciences"],
                       label='Sciences', alpha=0.7),
+        mpatches.Patch(facecolor=field_colors["CDTM"],
+                      label='CDTM', alpha=0.7),
         mpatches.Patch(facecolor=field_colors["Other"],
                       label='Other', alpha=0.7),
     ]
@@ -309,7 +401,7 @@ def create_flow_visualization(paths: List[Dict]) -> str:
                 fontsize=20, fontweight='bold', pad=20, color='#1e293b')
 
     # Add subtitle with count
-    ax.text(0.5, 0.98, f'Visualizing education journeys of {len(paths)} CDTM alumni',
+    ax.text(0.5, 0.98, f'Visualizing {len(paths)} alumni education journeys through CDTM',
            ha='center', va='top', transform=ax.transAxes,
            fontsize=10, color='#64748b', style='italic')
 
@@ -332,6 +424,9 @@ def get_statistics(paths):
 
     total_alumni = len(paths)
 
+    # Count paths with CDTM
+    paths_with_cdtm = sum(1 for p in paths if any(n.get('is_cdtm') for n in p['nodes']))
+
     # Count by primary field
     field_counter = Counter([p['primary_field'] for p in paths])
 
@@ -339,13 +434,15 @@ def get_statistics(paths):
     degree_counter = Counter()
     for path in paths:
         for node in path['nodes']:
-            degree_counter[node['degree']] += 1
+            if not node.get('is_cdtm'):
+                degree_counter[node['degree']] += 1
 
     # Path length stats
     path_lengths = [len(p['nodes']) for p in paths]
 
     return {
         'total_alumni': total_alumni,
+        'paths_with_cdtm': paths_with_cdtm,
         'field_counter': field_counter.most_common(),
         'degree_counter': degree_counter.most_common(5),
         'avg_path_length': np.mean(path_lengths),
@@ -366,7 +463,7 @@ app.layout = dbc.Container([
             html.H1("🎓 CDTM Alumni Education Path Explorer", className="text-center mb-4 mt-4"),
             html.P(
                 "Flow-style visualization showing how CDTM alumni progress through their education journey. "
-                "Each line represents one person's path, color-coded by primary field of study.",
+                "Each line represents one person's path, with orange highlighting connections through CDTM.",
                 className="text-center text-muted mb-4"
             )
         ])
@@ -461,7 +558,7 @@ app.layout = dbc.Container([
                 html.Ul([
                     html.Li("Each flowing line represents one alumni's education path"),
                     html.Li("Colors indicate the alumni's primary field of study"),
-                    html.Li("Thicker flows between nodes show more common transitions"),
+                    html.Li("Orange nodes and connections show paths through CDTM"),
                     html.Li("Nodes are sized based on how many alumni pass through them"),
                     html.Li("Left to right shows progression from Bachelor's through advanced degrees")
                 ], className="small text-muted")
@@ -510,6 +607,8 @@ def update_visualization(field_filter, degree_filter):
     if stats:
         stats_content = [
             html.H6(f"📊 {stats['total_alumni']} Alumni", className="mb-3"),
+            html.P(f"📍 {stats['paths_with_cdtm']} include CDTM ({stats['paths_with_cdtm']/stats['total_alumni']*100:.0f}%)",
+                  className="small text-muted mb-3"),
 
             html.H6("Primary Fields:", className="mt-3 mb-2 small"),
             html.Ul([
@@ -549,7 +648,7 @@ def reset_filters(n_clicks):
 
 if __name__ == '__main__':
     print("\n" + "="*60)
-    print("Starting CDTM Alumni Education Path Explorer (Flow Style)")
+    print("CDTM Alumni Education Path Explorer (Flow Style)")
     print("="*60)
     print(f"\nLoaded {len(ALUMNI_DATA)} alumni profiles")
     print("\nOpen your browser and navigate to: http://127.0.0.1:8050")
