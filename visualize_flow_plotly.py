@@ -146,7 +146,8 @@ def extract_paths(alumni_data: List[Dict], schools_data: Dict) -> List[Dict]:
                 'nodes': all_entries,
                 'primary_field': primary_field or "Other",
                 'name': person.get('full_name', 'Unknown'),
-                'headline': person.get('headline', '')
+                'headline': person.get('headline', ''),
+                'linkedin_url': person.get('linkedin_url', '')
             })
 
     return paths
@@ -215,6 +216,13 @@ def create_plotly_visualization(paths: List[Dict], output_file: str = 'education
 
         alumni_name = path_data['name']
         headline = path_data['headline']
+        linkedin_url = path_data.get('linkedin_url', '')
+
+        # Create hover text with LinkedIn link
+        if linkedin_url:
+            hover_text = f'<b>{alumni_name}</b><br>{headline}<br><a href="{linkedin_url}" target="_blank" style="color: white; text-decoration: underline;">View LinkedIn Profile</a>'
+        else:
+            hover_text = f'<b>{alumni_name}</b><br>{headline}<br><i>No LinkedIn URL</i>'
 
         # Draw each segment of the path
         for i in range(len(path_nodes) - 1):
@@ -263,7 +271,7 @@ def create_plotly_visualization(paths: List[Dict], output_file: str = 'education
                 mode='lines',
                 line=dict(color=line_color, width=2.5),  # Thicker for easier hover
                 opacity=line_alpha,
-                hovertemplate=f'<b>{alumni_name}</b><br>{headline}<br><extra></extra>',
+                hovertemplate=hover_text + '<extra></extra>',
                 hoverlabel=dict(
                     bgcolor=line_color,
                     font_size=13,

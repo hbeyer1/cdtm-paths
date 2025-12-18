@@ -152,7 +152,8 @@ def extract_paths(alumni_data: List[Dict], filters: Dict = None) -> List[Dict]:
                 'nodes': all_entries,
                 'primary_field': primary_field or "Other",
                 'name': person.get('full_name', 'Unknown'),
-                'headline': person.get('headline', '')
+                'headline': person.get('headline', ''),
+                'linkedin_url': person.get('linkedin_url', '')
             })
 
     return paths
@@ -252,13 +253,20 @@ def create_plotly_figure(paths: List[Dict]):
                 line_color = color
                 line_alpha = 0.2
 
+            # Create hover text with LinkedIn link
+            linkedin_url = path_data.get('linkedin_url', '')
+            if linkedin_url:
+                hover_text = f'<b>{alumni_name}</b><br>{headline}<br><a href="{linkedin_url}" target="_blank" style="color: white; text-decoration: underline;">View LinkedIn Profile</a>'
+            else:
+                hover_text = f'<b>{alumni_name}</b><br>{headline}<br><i>No LinkedIn URL</i>'
+
             fig.add_trace(go.Scatter(
                 x=xs,
                 y=ys,
                 mode='lines',
                 line=dict(color=line_color, width=2.5),  # Thicker for easier hover
                 opacity=line_alpha,
-                hovertemplate=f'<b>{alumni_name}</b><br>{headline}<br><extra></extra>',
+                hovertemplate=hover_text + '<extra></extra>',
                 hoverlabel=dict(
                     bgcolor=line_color,
                     font_size=13,
