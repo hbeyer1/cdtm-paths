@@ -5,7 +5,7 @@ Interactive Dash web application using Plotly with hover support for individual 
 
 import json
 import dash
-from dash import dcc, html, Input, Output
+from dash import dcc, html, Input, Output, clientside_callback, ClientsideFunction
 import dash_bootstrap_components as dbc
 import plotly.graph_objects as go
 import numpy as np
@@ -472,71 +472,7 @@ app.layout = dbc.Container([
                 ], className="small text-muted")
             ], className="mb-3")
         ])
-    ]),
-
-    # JavaScript for hover highlighting
-    html.Script("""
-        document.addEventListener('DOMContentLoaded', function() {
-            var graphDiv = document.getElementById('flow-diagram');
-            var hoveredPath = null;
-
-            function setupHoverListeners() {
-                if (!graphDiv || !graphDiv.on) {
-                    setTimeout(setupHoverListeners, 100);
-                    return;
-                }
-
-                graphDiv.on('plotly_hover', function(data) {
-                    var point = data.points[0];
-                    if (!point.data.customdata || !point.data.customdata[0]) return;
-
-                    var pathId = point.data.customdata[0][0];
-                    if (hoveredPath === pathId) return;
-                    hoveredPath = pathId;
-
-                    var update = {opacity: [], 'line.width': []};
-                    for (var i = 0; i < graphDiv.data.length; i++) {
-                        var trace = graphDiv.data[i];
-                        if (trace.mode === 'lines' && trace.customdata) {
-                            var tracePathId = trace.customdata[0][0];
-                            if (tracePathId === pathId) {
-                                update.opacity.push(0.9);
-                                update['line.width'].push(4);
-                            } else {
-                                update.opacity.push(0.05);
-                                update['line.width'].push(1.5);
-                            }
-                        } else {
-                            update.opacity.push(trace.opacity !== undefined ? trace.opacity : 1);
-                            update['line.width'].push(trace.line ? trace.line.width : 1);
-                        }
-                    }
-                    Plotly.restyle(graphDiv, update);
-                });
-
-                graphDiv.on('plotly_unhover', function(data) {
-                    if (hoveredPath === null) return;
-                    hoveredPath = null;
-
-                    var update = {opacity: [], 'line.width': []};
-                    for (var i = 0; i < graphDiv.data.length; i++) {
-                        var trace = graphDiv.data[i];
-                        if (trace.mode === 'lines' && trace.customdata) {
-                            var originalAlpha = trace.customdata[0][2];
-                            update.opacity.push(originalAlpha);
-                            update['line.width'].push(2.5);
-                        } else {
-                            update.opacity.push(trace.opacity !== undefined ? trace.opacity : 1);
-                            update['line.width'].push(trace.line ? trace.line.width : 1);
-                        }
-                    }
-                    Plotly.restyle(graphDiv, update);
-                });
-            }
-
-            setupHoverListeners();
-        });
-    """)
+    ])
 ], fluid=True)
 
 

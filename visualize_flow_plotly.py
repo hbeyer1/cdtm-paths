@@ -350,13 +350,20 @@ def create_plotly_visualization(paths: List[Dict], output_file: str = 'education
         hoverdistance=20  # Increased hover detection distance
     )
 
-    # JavaScript for hover highlighting
+    # JavaScript for hover highlighting with delay for LinkedIn clicks
     hover_script = """
     <script>
         var graphDiv = document.getElementsByClassName('plotly-graph-div')[0];
         var hoveredPath = null;
+        var unhoverTimeout = null;
 
         graphDiv.on('plotly_hover', function(data) {
+            // Clear any pending unhover timeout
+            if (unhoverTimeout) {
+                clearTimeout(unhoverTimeout);
+                unhoverTimeout = null;
+            }
+
             var point = data.points[0];
             if (!point.data.customdata || !point.data.customdata[0]) return;
 
@@ -385,22 +392,30 @@ def create_plotly_visualization(paths: List[Dict], output_file: str = 'education
         });
 
         graphDiv.on('plotly_unhover', function(data) {
-            if (hoveredPath === null) return;
-            hoveredPath = null;
-
-            var update = {opacity: [], 'line.width': []};
-            for (var i = 0; i < graphDiv.data.length; i++) {
-                var trace = graphDiv.data[i];
-                if (trace.mode === 'lines' && trace.customdata) {
-                    var originalAlpha = trace.customdata[0][2];
-                    update.opacity.push(originalAlpha);
-                    update['line.width'].push(2.5);
-                } else {
-                    update.opacity.push(trace.opacity !== undefined ? trace.opacity : 1);
-                    update['line.width'].push(trace.line ? trace.line.width : 1);
-                }
+            // Add delay before unhover to allow clicking on LinkedIn links
+            if (unhoverTimeout) {
+                clearTimeout(unhoverTimeout);
             }
-            Plotly.restyle(graphDiv, update);
+
+            unhoverTimeout = setTimeout(function() {
+                if (hoveredPath === null) return;
+                hoveredPath = null;
+
+                var update = {opacity: [], 'line.width': []};
+                for (var i = 0; i < graphDiv.data.length; i++) {
+                    var trace = graphDiv.data[i];
+                    if (trace.mode === 'lines' && trace.customdata) {
+                        var originalAlpha = trace.customdata[0][2];
+                        update.opacity.push(originalAlpha);
+                        update['line.width'].push(2.5);
+                    } else {
+                        update.opacity.push(trace.opacity !== undefined ? trace.opacity : 1);
+                        update['line.width'].push(trace.line ? trace.line.width : 1);
+                    }
+                }
+                Plotly.restyle(graphDiv, update);
+                unhoverTimeout = null;
+            }, 300); // 300ms delay allows clicking on LinkedIn links
         });
     </script>
     """
