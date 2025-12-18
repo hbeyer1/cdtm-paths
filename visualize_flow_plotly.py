@@ -219,11 +219,10 @@ def create_plotly_visualization(paths: List[Dict], output_file: str = 'education
         linkedin_url = path_data.get('linkedin_url', '')
         path_id = f"path_{path_idx}"  # Unique identifier for this path
 
-        # Create hover text with LinkedIn link
+        # Create simple hover text (HTML links don't work in Plotly hover tooltips)
+        hover_text = f'<b>{alumni_name}</b><br>{headline}'
         if linkedin_url:
-            hover_text = f'<b>{alumni_name}</b><br>{headline}<br><a href="{linkedin_url}" target="_blank" style="color: white; text-decoration: underline;">View LinkedIn Profile</a>'
-        else:
-            hover_text = f'<b>{alumni_name}</b><br>{headline}<br><i>No LinkedIn URL</i>'
+            hover_text += f'<br><br>Click to open LinkedIn profile'
 
         # Draw each segment of the path
         for i in range(len(path_nodes) - 1):
@@ -270,7 +269,7 @@ def create_plotly_visualization(paths: List[Dict], output_file: str = 'education
                 x=xs,
                 y=ys,
                 mode='lines',
-                line=dict(color=line_color, width=2.5),  # Thicker for easier hover
+                line=dict(color=line_color, width=2.5),
                 opacity=line_alpha,
                 hovertemplate=hover_text + '<extra></extra>',
                 hoverlabel=dict(
@@ -279,9 +278,9 @@ def create_plotly_visualization(paths: List[Dict], output_file: str = 'education
                     font_family="Arial",
                     font_color="white"
                 ),
-                customdata=[[path_id, line_color, line_alpha]] * len(xs),  # Store path ID and original styling
+                customdata=[[path_id, line_color, line_alpha, linkedin_url]] * len(xs),
                 showlegend=False,
-                name=path_id  # Group traces by path
+                name=path_id
             ))
 
             station_counts[current_key] += 1
@@ -350,20 +349,14 @@ def create_plotly_visualization(paths: List[Dict], output_file: str = 'education
         hoverdistance=20  # Increased hover detection distance
     )
 
-    # JavaScript for hover highlighting with delay for LinkedIn clicks
+    # JavaScript for hover highlighting and click-to-open LinkedIn
     hover_script = """
     <script>
         var graphDiv = document.getElementsByClassName('plotly-graph-div')[0];
         var hoveredPath = null;
-        var unhoverTimeout = null;
 
+        // Handle hover highlighting
         graphDiv.on('plotly_hover', function(data) {
-            // Clear any pending unhover timeout
-            if (unhoverTimeout) {
-                clearTimeout(unhoverTimeout);
-                unhoverTimeout = null;
-            }
-
             var point = data.points[0];
             if (!point.data.customdata || !point.data.customdata[0]) return;
 
@@ -377,10 +370,12 @@ def create_plotly_visualization(paths: List[Dict], output_file: str = 'education
                 if (trace.mode === 'lines' && trace.customdata) {
                     var tracePathId = trace.customdata[0][0];
                     if (tracePathId === pathId) {
-                        update.opacity.push(0.9);
-                        update['line.width'].push(4);
+                        // Highlight hovered path
+                        update.opacity.push(1.0);
+                        update['line.width'].push(5);
                     } else {
-                        update.opacity.push(0.05);
+                        // Dim other paths
+                        update.opacity.push(0.03);
                         update['line.width'].push(1.5);
                     }
                 } else {
@@ -391,39 +386,43 @@ def create_plotly_visualization(paths: List[Dict], output_file: str = 'education
             Plotly.restyle(graphDiv, update);
         });
 
+        // Handle unhover - reset to normal
         graphDiv.on('plotly_unhover', function(data) {
-            // Add delay before unhover to allow clicking on LinkedIn links
-            if (unhoverTimeout) {
-                clearTimeout(unhoverTimeout);
-            }
+            if (hoveredPath === null) return;
+            hoveredPath = null;
 
-            unhoverTimeout = setTimeout(function() {
-                if (hoveredPath === null) return;
-                hoveredPath = null;
-
-                var update = {opacity: [], 'line.width': []};
-                for (var i = 0; i < graphDiv.data.length; i++) {
-                    var trace = graphDiv.data[i];
-                    if (trace.mode === 'lines' && trace.customdata) {
-                        var originalAlpha = trace.customdata[0][2];
-                        update.opacity.push(originalAlpha);
-                        update['line.width'].push(2.5);
-                    } else {
-                        update.opacity.push(trace.opacity !== undefined ? trace.opacity : 1);
-                        update['line.width'].push(trace.line ? trace.line.width : 1);
-                    }
+            var update = {opacity: [], 'line.width': []};
+            for (var i = 0; i < graphDiv.data.length; i++) {
+                var trace = graphDiv.data[i];
+                if (trace.mode === 'lines' && trace.customdata) {
+                    var originalAlpha = trace.customdata[0][2];
+                    update.opacity.push(originalAlpha);
+                    update['line.width'].push(2.5);
+                } else {
+                    update.opacity.push(trace.opacity !== undefined ? trace.opacity : 1);
+                    update['line.width'].push(trace.line ? trace.line.width : 1);
                 }
-                Plotly.restyle(graphDiv, update);
-                unhoverTimeout = null;
-            }, 300); // 300ms delay allows clicking on LinkedIn links
+            }
+            Plotly.restyle(graphDiv, update);
+        });
+
+        // Handle click - open LinkedIn profile
+        graphDiv.on('plotly_click', function(data) {
+            var point = data.points[0];
+            if (!point.data.customdata || !point.data.customdata[0]) return;
+
+            var linkedinUrl = point.data.customdata[0][3];
+            if (linkedinUrl) {
+                window.open(linkedinUrl, '_blank');
+            }
         });
     </script>
     """
 
     fig.write_html(output_file, post_script=hover_script)
     print(f"\n✓ Saved interactive visualization to: {output_file}")
-    print(f"✓ Open in browser to hover over paths and see alumni names!")
-    print(f"✓ Hover highlighting enabled - hovered paths will stand out!")
+    print(f"✓ Hover over any path to highlight it - other paths will fade out")
+    print(f"✓ Click on any path to open the alumni's LinkedIn profile in a new tab")
 
     return fig
 

@@ -254,18 +254,16 @@ def create_plotly_figure(paths: List[Dict]):
                 line_color = color
                 line_alpha = 0.2
 
-            # Create hover text with LinkedIn link
-            linkedin_url = path_data.get('linkedin_url', '')
+            # Create simple hover text (no HTML links since they don't work in Plotly)
+            hover_text = f'<b>{alumni_name}</b><br>{headline}'
             if linkedin_url:
-                hover_text = f'<b>{alumni_name}</b><br>{headline}<br><a href="{linkedin_url}" target="_blank" style="color: white; text-decoration: underline;">View LinkedIn Profile</a>'
-            else:
-                hover_text = f'<b>{alumni_name}</b><br>{headline}<br><i>No LinkedIn URL</i>'
+                hover_text += f'<br><br>Click to open LinkedIn profile'
 
             fig.add_trace(go.Scatter(
                 x=xs,
                 y=ys,
                 mode='lines',
-                line=dict(color=line_color, width=2.5),  # Thicker for easier hover
+                line=dict(color=line_color, width=2.5),
                 opacity=line_alpha,
                 hovertemplate=hover_text + '<extra></extra>',
                 hoverlabel=dict(
@@ -274,9 +272,10 @@ def create_plotly_figure(paths: List[Dict]):
                     font_family="Arial",
                     font_color="white"
                 ),
-                customdata=[[path_id, line_color, line_alpha]] * len(xs),  # Store path ID and original styling
+                customdata=[[path_id, line_color, line_alpha, linkedin_url]] * len(xs),
                 showlegend=False,
-                name=path_id  # Group traces by path
+                name=path_id,
+                meta={'path_id': path_id, 'alumni_name': alumni_name}  # Add metadata
             ))
 
             station_counts[current_key] += 1
@@ -329,7 +328,8 @@ def create_plotly_figure(paths: List[Dict]):
         paper_bgcolor='white',
         height=700,
         hovermode='closest',
-        hoverdistance=20  # Increased hover detection distance
+        hoverdistance=20,  # Increased hover detection distance
+        uirevision='constant'  # Prevent layout changes on hover
     )
 
     return fig
@@ -464,11 +464,11 @@ app.layout = dbc.Container([
             html.Div([
                 html.H5("How to Use", className="mb-3"),
                 html.Ul([
-                    html.Li("Hover over any line to see the alumni's name and headline - the path will highlight and others will grey out"),
-                    html.Li("Click on LinkedIn links in the hover tooltip to visit alumni profiles"),
+                    html.Li("Hover over any path line to highlight it - other paths will fade out"),
+                    html.Li("Click on any path to open the alumni's LinkedIn profile in a new tab"),
                     html.Li("Hover over nodes to see how many alumni pass through"),
-                    html.Li("Use filters to focus on specific fields or degrees"),
-                    html.Li("Orange paths and node show the central CDTM program")
+                    html.Li("Use filters above to focus on specific fields or degrees"),
+                    html.Li("Orange paths and nodes represent the CDTM program")
                 ], className="small text-muted")
             ], className="mb-3")
         ])
@@ -527,6 +527,80 @@ def update_visualization(field_filter, degree_filter):
 def reset_filters(n_clicks):
     """Reset filters."""
     return 'All', 'All'
+
+
+# Clientside callback for hover highlighting
+app.clientside_callback(
+    """
+    function(hoverData, clickData, figure) {
+        if (!figure || !figure.data) return figure;
+
+        // Handle click to open LinkedIn
+        if (clickData && clickData.points && clickData.points[0]) {
+            var point = clickData.points[0];
+            if (point.customdata && point.customdata[3]) {
+                var linkedinUrl = point.customdata[3];
+                if (linkedinUrl) {
+                    window.open(linkedinUrl, '_blank');
+                }
+            }
+        }
+
+        // Handle hover highlighting
+        if (!hoverData || !hoverData.points || !hoverData.points[0]) {
+            // No hover - reset all paths to normal
+            var newFigure = {...figure};
+            newFigure.data = figure.data.map(trace => {
+                if (trace.mode === 'lines' && trace.customdata) {
+                    return {
+                        ...trace,
+                        opacity: trace.customdata[0][2],  // Original opacity
+                        line: {...trace.line, width: 2.5}
+                    };
+                }
+                return trace;
+            });
+            return newFigure;
+        }
+
+        // Get hovered path ID
+        var hoveredPoint = hoverData.points[0];
+        if (!hoveredPoint.customdata || !hoveredPoint.customdata[0]) return figure;
+        var hoveredPathId = hoveredPoint.customdata[0];
+
+        // Update figure with highlighting
+        var newFigure = {...figure};
+        newFigure.data = figure.data.map(trace => {
+            if (trace.mode === 'lines' && trace.customdata) {
+                var tracePathId = trace.customdata[0][0];
+                if (tracePathId === hoveredPathId) {
+                    // Highlight this path
+                    return {
+                        ...trace,
+                        opacity: 1.0,
+                        line: {...trace.line, width: 5}
+                    };
+                } else {
+                    // Dim other paths
+                    return {
+                        ...trace,
+                        opacity: 0.03,
+                        line: {...trace.line, width: 1.5}
+                    };
+                }
+            }
+            return trace;
+        });
+
+        return newFigure;
+    }
+    """,
+    Output('flow-diagram', 'figure', allow_duplicate=True),
+    [Input('flow-diagram', 'hoverData'),
+     Input('flow-diagram', 'clickData'),
+     Input('flow-diagram', 'figure')],
+    prevent_initial_call=True
+)
 
 
 if __name__ == '__main__':
