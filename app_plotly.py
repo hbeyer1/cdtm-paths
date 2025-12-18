@@ -210,13 +210,14 @@ def create_plotly_figure(paths: List[Dict]):
     station_counts = Counter()
 
     # Draw paths
-    for path_data in paths:
+    for path_idx, path_data in enumerate(paths):
         path_nodes = path_data['nodes']
         primary_field = path_data['primary_field']
         color = field_colors.get(primary_field, field_colors["Other"])
 
         alumni_name = path_data['name']
         headline = path_data['headline']
+        path_id = f"path_{path_idx}"  # Unique identifier for this path
 
         for i in range(len(path_nodes) - 1):
             current = path_nodes[i]
@@ -273,7 +274,9 @@ def create_plotly_figure(paths: List[Dict]):
                     font_family="Arial",
                     font_color="white"
                 ),
-                showlegend=False
+                customdata=[[path_id, line_color, line_alpha]] * len(xs),  # Store path ID and original styling
+                showlegend=False,
+                name=path_id  # Group traces by path
             ))
 
             station_counts[current_key] += 1
@@ -461,14 +464,79 @@ app.layout = dbc.Container([
             html.Div([
                 html.H5("How to Use", className="mb-3"),
                 html.Ul([
-                    html.Li("Hover over any line to see the alumni's name and headline"),
+                    html.Li("Hover over any line to see the alumni's name and headline - the path will highlight and others will grey out"),
+                    html.Li("Click on LinkedIn links in the hover tooltip to visit alumni profiles"),
                     html.Li("Hover over nodes to see how many alumni pass through"),
                     html.Li("Use filters to focus on specific fields or degrees"),
                     html.Li("Orange paths and node show the central CDTM program")
                 ], className="small text-muted")
             ], className="mb-3")
         ])
-    ])
+    ]),
+
+    # JavaScript for hover highlighting
+    html.Script("""
+        document.addEventListener('DOMContentLoaded', function() {
+            var graphDiv = document.getElementById('flow-diagram');
+            var hoveredPath = null;
+
+            function setupHoverListeners() {
+                if (!graphDiv || !graphDiv.on) {
+                    setTimeout(setupHoverListeners, 100);
+                    return;
+                }
+
+                graphDiv.on('plotly_hover', function(data) {
+                    var point = data.points[0];
+                    if (!point.data.customdata || !point.data.customdata[0]) return;
+
+                    var pathId = point.data.customdata[0][0];
+                    if (hoveredPath === pathId) return;
+                    hoveredPath = pathId;
+
+                    var update = {opacity: [], 'line.width': []};
+                    for (var i = 0; i < graphDiv.data.length; i++) {
+                        var trace = graphDiv.data[i];
+                        if (trace.mode === 'lines' && trace.customdata) {
+                            var tracePathId = trace.customdata[0][0];
+                            if (tracePathId === pathId) {
+                                update.opacity.push(0.9);
+                                update['line.width'].push(4);
+                            } else {
+                                update.opacity.push(0.05);
+                                update['line.width'].push(1.5);
+                            }
+                        } else {
+                            update.opacity.push(trace.opacity !== undefined ? trace.opacity : 1);
+                            update['line.width'].push(trace.line ? trace.line.width : 1);
+                        }
+                    }
+                    Plotly.restyle(graphDiv, update);
+                });
+
+                graphDiv.on('plotly_unhover', function(data) {
+                    if (hoveredPath === null) return;
+                    hoveredPath = null;
+
+                    var update = {opacity: [], 'line.width': []};
+                    for (var i = 0; i < graphDiv.data.length; i++) {
+                        var trace = graphDiv.data[i];
+                        if (trace.mode === 'lines' && trace.customdata) {
+                            var originalAlpha = trace.customdata[0][2];
+                            update.opacity.push(originalAlpha);
+                            update['line.width'].push(2.5);
+                        } else {
+                            update.opacity.push(trace.opacity !== undefined ? trace.opacity : 1);
+                            update['line.width'].push(trace.line ? trace.line.width : 1);
+                        }
+                    }
+                    Plotly.restyle(graphDiv, update);
+                });
+            }
+
+            setupHoverListeners();
+        });
+    """)
 ], fluid=True)
 
 

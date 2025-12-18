@@ -209,7 +209,7 @@ def create_plotly_visualization(paths: List[Dict], output_file: str = 'education
     station_counts = Counter()
 
     # Draw paths as individual traces (for hover)
-    for path_data in paths:
+    for path_idx, path_data in enumerate(paths):
         path_nodes = path_data['nodes']
         primary_field = path_data['primary_field']
         color = field_colors.get(primary_field, field_colors["Other"])
@@ -217,6 +217,7 @@ def create_plotly_visualization(paths: List[Dict], output_file: str = 'education
         alumni_name = path_data['name']
         headline = path_data['headline']
         linkedin_url = path_data.get('linkedin_url', '')
+        path_id = f"path_{path_idx}"  # Unique identifier for this path
 
         # Create hover text with LinkedIn link
         if linkedin_url:
@@ -278,7 +279,9 @@ def create_plotly_visualization(paths: List[Dict], output_file: str = 'education
                     font_family="Arial",
                     font_color="white"
                 ),
-                showlegend=False
+                customdata=[[path_id, line_color, line_alpha]] * len(xs),  # Store path ID and original styling
+                showlegend=False,
+                name=path_id  # Group traces by path
             ))
 
             station_counts[current_key] += 1
@@ -347,9 +350,65 @@ def create_plotly_visualization(paths: List[Dict], output_file: str = 'education
         hoverdistance=20  # Increased hover detection distance
     )
 
-    fig.write_html(output_file)
+    # JavaScript for hover highlighting
+    hover_script = """
+    <script>
+        var graphDiv = document.getElementsByClassName('plotly-graph-div')[0];
+        var hoveredPath = null;
+
+        graphDiv.on('plotly_hover', function(data) {
+            var point = data.points[0];
+            if (!point.data.customdata || !point.data.customdata[0]) return;
+
+            var pathId = point.data.customdata[0][0];
+            if (hoveredPath === pathId) return;
+            hoveredPath = pathId;
+
+            var update = {opacity: [], 'line.width': []};
+            for (var i = 0; i < graphDiv.data.length; i++) {
+                var trace = graphDiv.data[i];
+                if (trace.mode === 'lines' && trace.customdata) {
+                    var tracePathId = trace.customdata[0][0];
+                    if (tracePathId === pathId) {
+                        update.opacity.push(0.9);
+                        update['line.width'].push(4);
+                    } else {
+                        update.opacity.push(0.05);
+                        update['line.width'].push(1.5);
+                    }
+                } else {
+                    update.opacity.push(trace.opacity !== undefined ? trace.opacity : 1);
+                    update['line.width'].push(trace.line ? trace.line.width : 1);
+                }
+            }
+            Plotly.restyle(graphDiv, update);
+        });
+
+        graphDiv.on('plotly_unhover', function(data) {
+            if (hoveredPath === null) return;
+            hoveredPath = null;
+
+            var update = {opacity: [], 'line.width': []};
+            for (var i = 0; i < graphDiv.data.length; i++) {
+                var trace = graphDiv.data[i];
+                if (trace.mode === 'lines' && trace.customdata) {
+                    var originalAlpha = trace.customdata[0][2];
+                    update.opacity.push(originalAlpha);
+                    update['line.width'].push(2.5);
+                } else {
+                    update.opacity.push(trace.opacity !== undefined ? trace.opacity : 1);
+                    update['line.width'].push(trace.line ? trace.line.width : 1);
+                }
+            }
+            Plotly.restyle(graphDiv, update);
+        });
+    </script>
+    """
+
+    fig.write_html(output_file, post_script=hover_script)
     print(f"\n✓ Saved interactive visualization to: {output_file}")
     print(f"✓ Open in browser to hover over paths and see alumni names!")
+    print(f"✓ Hover highlighting enabled - hovered paths will stand out!")
 
     return fig
 
