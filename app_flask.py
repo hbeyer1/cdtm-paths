@@ -464,74 +464,99 @@ HTML_TEMPLATE = """
 
         function loadGraph() {
             var url = '/api/graph?field=' + currentFilters.field + '&degree=' + currentFilters.degree;
+            console.log('Loading graph from:', url);
 
             fetch(url)
-                .then(response => response.json())
+                .then(response => {
+                    console.log('Response status:', response.status);
+                    return response.json();
+                })
                 .then(data => {
-                    Plotly.newPlot('graph', data.data, data.layout, {displayModeBar: true});
+                    console.log('Received data:', data);
+                    console.log('Number of traces:', data.data.length);
+                    console.log('Layout:', data.layout);
 
-                    // Update stats
-                    document.getElementById('stats').innerHTML = data.stats;
+                    Plotly.newPlot('graph', data.data, data.layout, {displayModeBar: true})
+                        .then(() => {
+                            console.log('Graph plotted successfully');
+                            // Update stats
+                            document.getElementById('stats').innerHTML = data.stats;
 
-                    // Set up hover highlighting
-                    var graphDiv = document.getElementById('graph');
+                            // Set up hover highlighting
+                            var graphDiv = document.getElementById('graph');
 
-                    graphDiv.on('plotly_hover', function(eventData) {
-                        var point = eventData.points[0];
-                        if (!point.data.customdata || !point.data.customdata[0]) return;
+                            graphDiv.on('plotly_hover', function(eventData) {
+                                console.log('Hover event:', eventData);
+                                var point = eventData.points[0];
+                                if (!point.data.customdata || !point.data.customdata[0]) return;
 
-                        var pathId = point.data.customdata[0][0];
-                        if (hoveredPath === pathId) return;
-                        hoveredPath = pathId;
+                                var pathId = point.data.customdata[0][0];
+                                console.log('Hovered path:', pathId);
+                                if (hoveredPath === pathId) return;
+                                hoveredPath = pathId;
 
-                        var update = {opacity: [], 'line.width': []};
-                        for (var i = 0; i < graphDiv.data.length; i++) {
-                            var trace = graphDiv.data[i];
-                            if (trace.mode === 'lines' && trace.customdata) {
-                                var tracePathId = trace.customdata[0][0];
-                                if (tracePathId === pathId) {
-                                    update.opacity.push(1.0);
-                                    update['line.width'].push(5);
-                                } else {
-                                    update.opacity.push(0.03);
-                                    update['line.width'].push(1.5);
+                                var update = {opacity: [], 'line.width': []};
+                                for (var i = 0; i < graphDiv.data.length; i++) {
+                                    var trace = graphDiv.data[i];
+                                    if (trace.mode === 'lines' && trace.customdata) {
+                                        var tracePathId = trace.customdata[0][0];
+                                        if (tracePathId === pathId) {
+                                            update.opacity.push(1.0);
+                                            update['line.width'].push(5);
+                                        } else {
+                                            update.opacity.push(0.03);
+                                            update['line.width'].push(1.5);
+                                        }
+                                    } else {
+                                        update.opacity.push(trace.opacity !== undefined ? trace.opacity : 1);
+                                        update['line.width'].push(trace.marker ? trace.marker.size : 1);
+                                    }
                                 }
-                            } else {
-                                update.opacity.push(trace.opacity !== undefined ? trace.opacity : 1);
-                                update['line.width'].push(trace.marker ? trace.marker.size : 1);
-                            }
-                        }
-                        Plotly.restyle(graphDiv, update);
-                    });
+                                console.log('Applying hover style');
+                                Plotly.restyle(graphDiv, update);
+                            });
 
-                    graphDiv.on('plotly_unhover', function() {
-                        if (hoveredPath === null) return;
-                        hoveredPath = null;
+                            graphDiv.on('plotly_unhover', function() {
+                                console.log('Unhover event');
+                                if (hoveredPath === null) return;
+                                hoveredPath = null;
 
-                        var update = {opacity: [], 'line.width': []};
-                        for (var i = 0; i < graphDiv.data.length; i++) {
-                            var trace = graphDiv.data[i];
-                            if (trace.mode === 'lines' && trace.customdata) {
-                                var originalAlpha = trace.customdata[0][2];
-                                update.opacity.push(originalAlpha);
-                                update['line.width'].push(2.5);
-                            } else {
-                                update.opacity.push(trace.opacity !== undefined ? trace.opacity : 1);
-                                update['line.width'].push(trace.marker ? trace.marker.size : 1);
-                            }
-                        }
-                        Plotly.restyle(graphDiv, update);
-                    });
+                                var update = {opacity: [], 'line.width': []};
+                                for (var i = 0; i < graphDiv.data.length; i++) {
+                                    var trace = graphDiv.data[i];
+                                    if (trace.mode === 'lines' && trace.customdata) {
+                                        var originalAlpha = trace.customdata[0][2];
+                                        update.opacity.push(originalAlpha);
+                                        update['line.width'].push(2.5);
+                                    } else {
+                                        update.opacity.push(trace.opacity !== undefined ? trace.opacity : 1);
+                                        update['line.width'].push(trace.marker ? trace.marker.size : 1);
+                                    }
+                                }
+                                console.log('Resetting to normal style');
+                                Plotly.restyle(graphDiv, update);
+                            });
 
-                    graphDiv.on('plotly_click', function(eventData) {
-                        var point = eventData.points[0];
-                        if (!point.data.customdata || !point.data.customdata[0]) return;
+                            graphDiv.on('plotly_click', function(eventData) {
+                                console.log('Click event:', eventData);
+                                var point = eventData.points[0];
+                                if (!point.data.customdata || !point.data.customdata[0]) return;
 
-                        var linkedinUrl = point.data.customdata[0][3];
-                        if (linkedinUrl) {
-                            window.open(linkedinUrl, '_blank');
-                        }
-                    });
+                                var linkedinUrl = point.data.customdata[0][3];
+                                if (linkedinUrl) {
+                                    console.log('Opening LinkedIn:', linkedinUrl);
+                                    window.open(linkedinUrl, '_blank');
+                                }
+                            });
+                        })
+                        .catch(err => {
+                            console.error('Error plotting graph:', err);
+                            document.getElementById('stats').innerHTML = '<strong style="color: red;">Error loading graph: ' + err.message + '</strong>';
+                        });
+                })
+                .catch(err => {
+                    console.error('Error fetching data:', err);
+                    document.getElementById('stats').innerHTML = '<strong style="color: red;">Error fetching data: ' + err.message + '</strong>';
                 });
         }
 
