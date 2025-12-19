@@ -1,111 +1,124 @@
-// Hover highlighting for education path visualization
-(function() {
-    'use strict';
+// Hover highlighting and click-to-open for education path visualization
+if (!window.dashExtensions) {
+    window.dashExtensions = {};
+}
+
+window.dashExtensions.setupPathHighlighting = function() {
+    console.log('Setting up path highlighting...');
+
+    var graphDiv = document.getElementById('flow-diagram');
+    if (!graphDiv) {
+        console.log('Graph not found, retrying...');
+        setTimeout(window.dashExtensions.setupPathHighlighting, 200);
+        return;
+    }
+
+    // Wait for Plotly to be fully loaded
+    if (!graphDiv.data || graphDiv.data.length === 0) {
+        console.log('Graph data not loaded, retrying...');
+        setTimeout(window.dashExtensions.setupPathHighlighting, 200);
+        return;
+    }
+
+    console.log('Graph found with', graphDiv.data.length, 'traces');
 
     var hoveredPath = null;
-    var unhoverTimeout = null;
+    var listeners_attached = false;
 
-    function setupHoverListeners() {
-        var graphDiv = document.getElementById('flow-diagram');
+    // Remove old listeners if they exist
+    if (graphDiv._hasPathListeners) {
+        Plotly.purge(graphDiv);
+        console.log('Removed old listeners');
+    }
 
-        if (!graphDiv) {
-            // Graph not loaded yet, try again
-            setTimeout(setupHoverListeners, 100);
-            return;
-        }
+    // Add hover listener
+    graphDiv.on('plotly_hover', function(data) {
+        console.log('Hover detected');
+        var point = data.points[0];
+        if (!point.data.customdata || !point.data.customdata[0]) return;
 
-        var plotlyGraph = graphDiv._fullLayout ? graphDiv : null;
+        var pathId = point.data.customdata[0][0];
+        console.log('Hovering over path:', pathId);
 
-        if (!plotlyGraph) {
-            // Plotly not fully initialized, try again
-            setTimeout(setupHoverListeners, 100);
-            return;
-        }
+        if (hoveredPath === pathId) return;
+        hoveredPath = pathId;
 
-        console.log('Setting up hover listeners for path highlighting');
-
-        graphDiv.on('plotly_hover', function(data) {
-            // Clear any pending unhover timeout
-            if (unhoverTimeout) {
-                clearTimeout(unhoverTimeout);
-                unhoverTimeout = null;
-            }
-
-            var point = data.points[0];
-            if (!point.data.customdata || !point.data.customdata[0]) return;
-
-            var pathId = point.data.customdata[0][0];
-            if (hoveredPath === pathId) return;
-
-            hoveredPath = pathId;
-
-            var update = {opacity: [], 'line.width': []};
-            for (var i = 0; i < graphDiv.data.length; i++) {
-                var trace = graphDiv.data[i];
-                if (trace.mode === 'lines' && trace.customdata) {
-                    var tracePathId = trace.customdata[0][0];
-                    if (tracePathId === pathId) {
-                        update.opacity.push(0.9);
-                        update['line.width'].push(4);
-                    } else {
-                        update.opacity.push(0.05);
-                        update['line.width'].push(1.5);
-                    }
+        var update = {opacity: [], 'line.width': []};
+        for (var i = 0; i < graphDiv.data.length; i++) {
+            var trace = graphDiv.data[i];
+            if (trace.mode === 'lines' && trace.customdata) {
+                var tracePathId = trace.customdata[0][0];
+                if (tracePathId === pathId) {
+                    // Highlight this path
+                    update.opacity.push(1.0);
+                    update['line.width'].push(5);
                 } else {
-                    update.opacity.push(trace.opacity !== undefined ? trace.opacity : 1);
-                    update['line.width'].push(trace.line ? trace.line.width : 1);
+                    // Dim other paths heavily
+                    update.opacity.push(0.03);
+                    update['line.width'].push(1.5);
                 }
+            } else {
+                // Keep nodes unchanged
+                update.opacity.push(trace.opacity !== undefined ? trace.opacity : 1);
+                update['line.width'].push(trace.marker ? trace.marker.size : 1);
             }
-            Plotly.restyle(graphDiv, update);
-        });
+        }
 
-        graphDiv.on('plotly_unhover', function(data) {
-            // Add delay before unhover to allow clicking on LinkedIn links
-            if (unhoverTimeout) {
-                clearTimeout(unhoverTimeout);
-            }
-
-            unhoverTimeout = setTimeout(function() {
-                if (hoveredPath === null) return;
-                hoveredPath = null;
-
-                var update = {opacity: [], 'line.width': []};
-                for (var i = 0; i < graphDiv.data.length; i++) {
-                    var trace = graphDiv.data[i];
-                    if (trace.mode === 'lines' && trace.customdata) {
-                        var originalAlpha = trace.customdata[0][2];
-                        update.opacity.push(originalAlpha);
-                        update['line.width'].push(2.5);
-                    } else {
-                        update.opacity.push(trace.opacity !== undefined ? trace.opacity : 1);
-                        update['line.width'].push(trace.line ? trace.line.width : 1);
-                    }
-                }
-                Plotly.restyle(graphDiv, update);
-                unhoverTimeout = null;
-            }, 300); // 300ms delay allows clicking on LinkedIn links
-        });
-    }
-
-    // Start trying to set up listeners once DOM is ready
-    if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', setupHoverListeners);
-    } else {
-        setupHoverListeners();
-    }
-
-    // Also set up after any Dash callback (graph might be re-rendered)
-    var observer = new MutationObserver(function(mutations) {
-        mutations.forEach(function(mutation) {
-            if (mutation.addedNodes.length > 0) {
-                setupHoverListeners();
-            }
-        });
+        console.log('Applying hover style...');
+        Plotly.restyle(graphDiv, update);
     });
 
-    // Observe the entire document for changes
-    observer.observe(document.body, {
-        childList: true,
-        subtree: true
+    // Add unhover listener
+    graphDiv.on('plotly_unhover', function(data) {
+        console.log('Unhover detected');
+        if (hoveredPath === null) return;
+        hoveredPath = null;
+
+        var update = {opacity: [], 'line.width': []};
+        for (var i = 0; i < graphDiv.data.length; i++) {
+            var trace = graphDiv.data[i];
+            if (trace.mode === 'lines' && trace.customdata) {
+                var originalAlpha = trace.customdata[0][2];
+                update.opacity.push(originalAlpha);
+                update['line.width'].push(2.5);
+            } else {
+                update.opacity.push(trace.opacity !== undefined ? trace.opacity : 1);
+                update['line.width'].push(trace.marker ? trace.marker.size : 1);
+            }
+        }
+
+        console.log('Resetting to normal style...');
+        Plotly.restyle(graphDiv, update);
     });
-})();
+
+    // Add click listener for LinkedIn
+    graphDiv.on('plotly_click', function(data) {
+        console.log('Click detected');
+        var point = data.points[0];
+        if (!point.data.customdata || !point.data.customdata[0]) return;
+
+        var linkedinUrl = point.data.customdata[0][3];
+        if (linkedinUrl) {
+            console.log('Opening LinkedIn:', linkedinUrl);
+            window.open(linkedinUrl, '_blank');
+        }
+    });
+
+    graphDiv._hasPathListeners = true;
+    console.log('Path highlighting setup complete!');
+};
+
+// Try to set up immediately
+window.dashExtensions.setupPathHighlighting();
+
+// Also try after DOM is loaded
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('DOM loaded, setting up path highlighting');
+    window.dashExtensions.setupPathHighlighting();
+});
+
+// Set up after a delay to catch late-loading graphs
+setTimeout(function() {
+    console.log('Delayed setup of path highlighting');
+    window.dashExtensions.setupPathHighlighting();
+}, 1000);

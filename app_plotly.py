@@ -5,7 +5,7 @@ Interactive Dash web application using Plotly with hover support for individual 
 
 import json
 import dash
-from dash import dcc, html, Input, Output, clientside_callback, ClientsideFunction
+from dash import dcc, html, Input, Output
 import dash_bootstrap_components as dbc
 import plotly.graph_objects as go
 import numpy as np
@@ -217,6 +217,7 @@ def create_plotly_figure(paths: List[Dict]):
 
         alumni_name = path_data['name']
         headline = path_data['headline']
+        linkedin_url = path_data.get('linkedin_url', '')  # Extract LinkedIn URL
         path_id = f"path_{path_idx}"  # Unique identifier for this path
 
         for i in range(len(path_nodes) - 1):
@@ -529,78 +530,8 @@ def reset_filters(n_clicks):
     return 'All', 'All'
 
 
-# Clientside callback for hover highlighting
-app.clientside_callback(
-    """
-    function(hoverData, clickData, figure) {
-        if (!figure || !figure.data) return figure;
-
-        // Handle click to open LinkedIn
-        if (clickData && clickData.points && clickData.points[0]) {
-            var point = clickData.points[0];
-            if (point.customdata && point.customdata[3]) {
-                var linkedinUrl = point.customdata[3];
-                if (linkedinUrl) {
-                    window.open(linkedinUrl, '_blank');
-                }
-            }
-        }
-
-        // Handle hover highlighting
-        if (!hoverData || !hoverData.points || !hoverData.points[0]) {
-            // No hover - reset all paths to normal
-            var newFigure = {...figure};
-            newFigure.data = figure.data.map(trace => {
-                if (trace.mode === 'lines' && trace.customdata) {
-                    return {
-                        ...trace,
-                        opacity: trace.customdata[0][2],  // Original opacity
-                        line: {...trace.line, width: 2.5}
-                    };
-                }
-                return trace;
-            });
-            return newFigure;
-        }
-
-        // Get hovered path ID
-        var hoveredPoint = hoverData.points[0];
-        if (!hoveredPoint.customdata || !hoveredPoint.customdata[0]) return figure;
-        var hoveredPathId = hoveredPoint.customdata[0];
-
-        // Update figure with highlighting
-        var newFigure = {...figure};
-        newFigure.data = figure.data.map(trace => {
-            if (trace.mode === 'lines' && trace.customdata) {
-                var tracePathId = trace.customdata[0][0];
-                if (tracePathId === hoveredPathId) {
-                    // Highlight this path
-                    return {
-                        ...trace,
-                        opacity: 1.0,
-                        line: {...trace.line, width: 5}
-                    };
-                } else {
-                    // Dim other paths
-                    return {
-                        ...trace,
-                        opacity: 0.03,
-                        line: {...trace.line, width: 1.5}
-                    };
-                }
-            }
-            return trace;
-        });
-
-        return newFigure;
-    }
-    """,
-    Output('flow-diagram', 'figure', allow_duplicate=True),
-    [Input('flow-diagram', 'hoverData'),
-     Input('flow-diagram', 'clickData'),
-     Input('flow-diagram', 'figure')],
-    prevent_initial_call=True
-)
+# Note: Hover highlighting is handled by assets/hover_highlight.js
+# The JavaScript file automatically loads and sets up event listeners
 
 
 if __name__ == '__main__':
