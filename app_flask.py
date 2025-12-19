@@ -582,14 +582,20 @@ def get_graph():
     total = len(paths)
     with_cdtm = sum(1 for p in paths if any(n.get('is_cdtm') for n in p['nodes']))
 
-    stats_html = f"""
-        <strong>📊 Statistics:</strong> {total} alumni paths shown
-        ({with_cdtm} include CDTM - {with_cdtm/total*100:.0f}%)
-    """
+    if total > 0:
+        stats_html = f"""
+            <strong>📊 Statistics:</strong> {total} alumni paths shown
+            ({with_cdtm} include CDTM - {with_cdtm/total*100:.0f}%)
+        """
+    else:
+        stats_html = "<strong>📊 Statistics:</strong> No alumni paths match the selected filters"
+
+    # Convert Plotly figure to JSON-serializable dict
+    fig_dict = fig.to_dict()
 
     return jsonify({
-        'data': fig.data,
-        'layout': fig.layout,
+        'data': fig_dict['data'],
+        'layout': fig_dict['layout'],
         'stats': stats_html
     })
 
