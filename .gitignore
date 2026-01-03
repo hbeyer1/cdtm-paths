@@ -1,0 +1,28 @@
+# Generated visualization files
+*.html
+*.png
+
+# Backup files
+*_backup.py
+*_old_backup.py
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
