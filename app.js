@@ -1,69 +1,158 @@
 // CDTM Alumni Education Path Visualization
-// Pure JavaScript implementation
+// Updated to use educational_paths.csv with normalized columns
 
 // Global state
-let alumniData = [];
-let schoolsData = {};
+let educationData = [];
+let groupedAlumni = {};
 let currentFilters = { field: 'All', degree: 'All' };
 let hoveredPath = null;
 
-// Field colors
+// Field colors - updated for new normalized fields
 const FIELD_COLORS = {
-    "Engineering/Tech": "#3b82f6",
-    "Business": "#ef4444",
-    "Sciences": "#10b981",
+    "Computer Science & AI": "#3b82f6",
+    "Business & Economics": "#ef4444",
+    "Engineering": "#10b981",
+    "Technology Management": "#f59e0b",
+    "Information Systems & HCI": "#8b5cf6",
+    "Natural Sciences & Mathematics": "#06b6d4",
+    "Medicine & Health Sciences": "#ec4899",
+    "Psychology & Social Sciences": "#f97316",
+    "Design, Architecture & Media": "#a855f7",
+    "Law & Legal Studies": "#64748b",
+    "Education & Other": "#94a3b8",
     "Other": "#94a3b8",
     "CDTM": "#f59e0b"
 };
 
-// Station positions
+// Station positions - based on normalized_degree levels
+// X-axis: Education stage (left to right = earlier to later)
+// Y-axis: Field categories
 const STATIONS = {
-    "CDTM": [3.0, 4.0],
-    "Bachelor's|Engineering/Tech": [0.5, 6.5],
-    "Bachelor's|Business": [0.5, 5.0],
-    "Bachelor's|Sciences": [0.5, 3.5],
-    "Bachelor's|Other": [0.5, 2.0],
-    "Diploma|Engineering/Tech": [1.5, 6.0],
-    "Diploma|Business": [1.5, 4.5],
-    "Diploma|Other": [1.5, 3.0],
-    "Master's|Engineering/Tech": [5.0, 6.5],
-    "Master's|Business": [5.0, 5.0],
-    "Master's|Sciences": [5.0, 3.5],
-    "Master's|Other": [5.0, 2.0],
-    "Doctorate|Engineering/Tech": [7.0, 6.0],
-    "Doctorate|Business": [7.0, 4.5],
-    "Doctorate|Sciences": [7.0, 3.0],
-    "Doctorate|Other": [7.0, 1.5]
+    // CDTM (center position)
+    "CDTM": [4.0, 4.5],
+
+    // High School / Pre-University (leftmost)
+    "High School|Other": [0.5, 1.0],
+
+    // Undergraduate level
+    "Undergraduate|Computer Science & AI": [1.5, 8.0],
+    "Undergraduate|Business & Economics": [1.5, 6.5],
+    "Undergraduate|Engineering": [1.5, 5.0],
+    "Undergraduate|Information Systems & HCI": [1.5, 3.5],
+    "Undergraduate|Natural Sciences & Mathematics": [1.5, 2.0],
+    "Undergraduate|Other": [1.5, 0.5],
+
+    // Exchange/Visiting (between undergrad and grad)
+    "Exchange|Computer Science & AI": [2.5, 7.5],
+    "Exchange|Business & Economics": [2.5, 6.0],
+    "Exchange|Engineering": [2.5, 4.5],
+    "Exchange|Other": [2.5, 1.5],
+
+    // Graduate level
+    "Graduate|Computer Science & AI": [5.5, 8.0],
+    "Graduate|Business & Economics": [5.5, 6.5],
+    "Graduate|Engineering": [5.5, 5.0],
+    "Graduate|Technology Management": [5.5, 3.5],
+    "Graduate|Information Systems & HCI": [5.5, 2.5],
+    "Graduate|Natural Sciences & Mathematics": [5.5, 1.5],
+    "Graduate|Other": [5.5, 0.5],
+
+    // Post-Graduate / PhD (rightmost)
+    "Doctorate|Computer Science & AI": [7.5, 7.0],
+    "Doctorate|Engineering": [7.5, 5.5],
+    "Doctorate|Natural Sciences & Mathematics": [7.5, 4.0],
+    "Doctorate|Business & Economics": [7.5, 2.5],
+    "Doctorate|Other": [7.5, 1.0]
 };
 
-// Utility functions
-function categorizeDegree(degree, field) {
-    if (!degree) return "Other";
-    const degreeLower = degree.toLowerCase();
+// CSV Parser
+function parseCSV(text) {
+    const lines = text.split('\n');
+    const headers = parseCSVLine(lines[0]);
+    const data = [];
 
-    if (/(bachelor|b\.sc|b\.a|b\.eng|bsc)/i.test(degreeLower)) return "Bachelor's";
-    if (/(master|m\.sc|m\.a|m\.eng|msc|mba)/i.test(degreeLower)) return "Master's";
-    if (/(phd|ph\.d|doctor|doctorate)/i.test(degreeLower)) return "Doctorate";
-    if (/(dipl|diploma)/i.test(degreeLower)) return "Diploma";
+    for (let i = 1; i < lines.length; i++) {
+        if (lines[i].trim() === '') continue;
+        const values = parseCSVLine(lines[i]);
+        const row = {};
+        headers.forEach((header, idx) => {
+            row[header] = values[idx] || '';
+        });
+        data.push(row);
+    }
 
-    return "Other";
+    return data;
 }
 
-function categorizeField(field) {
-    if (!field) return "Other";
-    const fieldLower = field.toLowerCase();
+function parseCSVLine(line) {
+    const result = [];
+    let current = '';
+    let inQuotes = false;
 
-    const engineeringKeywords = ['engineering', 'computer science', 'informatics', 'technology', 'cs', 'electrical', 'mechanical'];
-    const businessKeywords = ['business', 'management', 'economics', 'mba', 'finance', 'marketing'];
-    const scienceKeywords = ['science', 'physics', 'chemistry', 'biology', 'mathematics', 'math'];
+    for (let i = 0; i < line.length; i++) {
+        const char = line[i];
+        if (char === '"') {
+            inQuotes = !inQuotes;
+        } else if (char === ',' && !inQuotes) {
+            result.push(current.trim());
+            current = '';
+        } else {
+            current += char;
+        }
+    }
+    result.push(current.trim());
 
-    if (engineeringKeywords.some(kw => fieldLower.includes(kw))) return "Engineering/Tech";
-    if (businessKeywords.some(kw => fieldLower.includes(kw))) return "Business";
-    if (scienceKeywords.some(kw => fieldLower.includes(kw))) return "Sciences";
-
-    return "Other";
+    return result;
 }
 
+// Normalize degree for station mapping
+function mapDegreeToStation(normalizedDegree) {
+    if (!normalizedDegree) return null;
+
+    const degreeMap = {
+        'Undergraduate': 'Undergraduate',
+        'Graduate': 'Graduate',
+        'High School / Secondary': 'High School',
+        'Pre-University': 'High School',
+        'Exchange & Summer Programs': 'Exchange',
+        'Visiting scholar / student researcher': 'Exchange',
+        'Honours & Elite Add-on Degrees': 'CDTM', // CDTM is typically this
+        'Certificates & Professional Training': null, // Skip
+        'Vocational & Apprenticeships': null, // Skip
+        'other': null // Skip
+    };
+
+    return degreeMap[normalizedDegree] || null;
+}
+
+// Normalize field for station mapping
+function mapFieldToStation(normalizedField) {
+    if (!normalizedField) return 'Other';
+
+    const fieldMap = {
+        'Computer Science & AI': 'Computer Science & AI',
+        'Business & Economics': 'Business & Economics',
+        'Engineering': 'Engineering',
+        'Technology Management': 'Technology Management',
+        'Information Systems & HCI': 'Information Systems & HCI',
+        'Natural Sciences & Mathematics': 'Natural Sciences & Mathematics',
+        'Medicine & Health Sciences': 'Other',
+        'Psychology & Social Sciences': 'Other',
+        'Design, Architecture & Media': 'Other',
+        'Law & Legal Studies': 'Other',
+        'Education & Other': 'Other'
+    };
+
+    return fieldMap[normalizedField] || 'Other';
+}
+
+// Check if this is a CDTM entry
+function isCDTM(row) {
+    const school = (row.school || '').toUpperCase();
+    return school.includes('CDTM') || school.includes('CENTER FOR DIGITAL TECHNOLOGY');
+}
+
+// Sigmoid curve for smooth path lines
 function sigmoidCurve(x1, y1, x2, y2, nPoints = 30) {
     const xs = [];
     const ys = [];
@@ -79,86 +168,100 @@ function sigmoidCurve(x1, y1, x2, y2, nPoints = 30) {
     return { xs, ys };
 }
 
+// Group education entries by alumni
+function groupByAlumni(data) {
+    const grouped = {};
+
+    data.forEach(row => {
+        const key = `${row.full_name}|${row.linkedin_url}`;
+        if (!grouped[key]) {
+            grouped[key] = {
+                full_name: row.full_name,
+                headline: row.headline,
+                linkedin_url: row.linkedin_url,
+                location: row.location,
+                education: []
+            };
+        }
+        grouped[key].education.push({
+            school: row.school,
+            degree: row.degree,
+            field: row.field,
+            start: row.start,
+            end: row.end,
+            normalized_degree: row.normalized_degree,
+            normalized_field: row.normalized_field
+        });
+    });
+
+    return grouped;
+}
+
 // Extract paths from alumni data
 function extractPaths(filters = {}) {
     const paths = [];
 
-    alumniData.forEach(person => {
-        const educationPath = person.education_path || [];
-        if (educationPath.length === 0) return;
+    Object.values(groupedAlumni).forEach(person => {
+        const education = person.education || [];
+        if (education.length === 0) return;
 
-        const allEntries = [];
-        let cdtmLevel = null;
+        const nodes = [];
+        let hasCDTM = false;
+        let primaryField = 'Other';
 
-        // Process education entries
-        educationPath.forEach((entry, idx) => {
-            const institution = entry.institution || '';
-            const degree = entry.degree_name || '';
-            const field = entry.field_of_study || '';
+        // Sort education by start date (chronological)
+        const sortedEducation = [...education].sort((a, b) => {
+            const aYear = parseInt(a.start?.split('/')[1] || a.start || '9999');
+            const bYear = parseInt(b.start?.split('/')[1] || b.start || '9999');
+            return aYear - bYear;
+        });
 
+        // Process each education entry
+        sortedEducation.forEach(edu => {
             // Check for CDTM
-            if (institution.toUpperCase().includes('CDTM') ||
-                institution.toUpperCase().includes('CENTER FOR DIGITAL TECHNOLOGY')) {
-                cdtmLevel = idx;
+            if (isCDTM(edu)) {
+                hasCDTM = true;
+                nodes.push({
+                    degree: 'CDTM',
+                    field: 'CDTM',
+                    is_cdtm: true,
+                    school: edu.school
+                });
                 return;
             }
 
-            const categorizedDegree = categorizeDegree(degree, field);
-            const categorizedField = categorizeField(field);
+            const stationDegree = mapDegreeToStation(edu.normalized_degree);
+            if (!stationDegree) return; // Skip entries we can't map
+
+            const stationField = mapFieldToStation(edu.normalized_field);
 
             // Apply filters
-            if (filters.field && categorizedField !== filters.field) return;
-            if (filters.degree && categorizedDegree !== filters.degree) return;
+            if (filters.field && filters.field !== 'All' && stationField !== filters.field) return;
+            if (filters.degree && filters.degree !== 'All' && stationDegree !== filters.degree) return;
 
-            allEntries.push({
-                degree: categorizedDegree,
-                field: categorizedField,
-                institution: institution,
-                is_cdtm: false
+            // Determine primary field
+            if (primaryField === 'Other' && stationField !== 'Other') {
+                primaryField = stationField;
+            }
+
+            nodes.push({
+                degree: stationDegree,
+                field: stationField,
+                is_cdtm: false,
+                school: edu.school,
+                original_degree: edu.normalized_degree,
+                original_field: edu.normalized_field
             });
         });
 
-        if (allEntries.length === 0) return;
-
-        // Insert CDTM node
-        if (cdtmLevel !== null) {
-            const bachelorIdx = allEntries.findIndex(e =>
-                e.degree === "Bachelor's" || e.degree === "Diploma"
-            );
-
-            let insertIdx;
-            if (bachelorIdx !== -1) {
-                insertIdx = bachelorIdx + 1;
-            } else {
-                const masterIdx = allEntries.findIndex(e => e.degree === "Master's");
-                insertIdx = masterIdx !== -1 ? masterIdx + 1 : 1;
-            }
-
-            allEntries.splice(Math.min(insertIdx, allEntries.length), 0, {
-                degree: 'CDTM',
-                field: 'CDTM',
-                institution: 'CDTM',
-                is_cdtm: true,
-                cdtm_level: cdtmLevel
-            });
-        }
-
-        // Determine primary field
-        let primaryField = "Other";
-        for (const entry of allEntries) {
-            if (entry.field !== "Other" && !entry.is_cdtm) {
-                primaryField = entry.field;
-                break;
-            }
-        }
-
-        if (allEntries.length >= 2) {
+        if (nodes.length >= 2) {
             paths.push({
-                nodes: allEntries,
+                nodes: nodes,
                 primary_field: primaryField,
                 name: person.full_name || 'Unknown',
                 headline: person.headline || '',
-                linkedin_url: person.linkedin_url || ''
+                linkedin_url: person.linkedin_url || '',
+                has_cdtm: hasCDTM
             });
         }
     });
@@ -198,14 +301,14 @@ function createVisualization(paths) {
             const [x1, y1] = STATIONS[currentKey];
             const [x2, y2] = STATIONS[nextKey];
 
-            // Add jitter
-            const yJitterStart = (Math.random() - 0.5) * 0.2;
-            const yJitterEnd = (Math.random() - 0.5) * 0.2;
+            // Add jitter to avoid overlapping lines
+            const yJitterStart = (Math.random() - 0.5) * 0.3;
+            const yJitterEnd = (Math.random() - 0.5) * 0.3;
 
             const curve = sigmoidCurve(x1, y1 + yJitterStart, x2, y2 + yJitterEnd);
 
             const lineColor = (current.is_cdtm || next.is_cdtm) ? FIELD_COLORS["CDTM"] : color;
-            const lineAlpha = (current.is_cdtm || next.is_cdtm) ? 0.3 : 0.2;
+            const lineAlpha = (current.is_cdtm || next.is_cdtm) ? 0.4 : 0.25;
 
             traces.push({
                 x: curve.xs,
@@ -223,8 +326,8 @@ function createVisualization(paths) {
                 name: pathId
             });
 
-            stationCounts[currentKey]++;
-            stationCounts[nextKey]++;
+            stationCounts[currentKey] = (stationCounts[currentKey] || 0) + 1;
+            stationCounts[nextKey] = (stationCounts[nextKey] || 0) + 1;
         }
     });
 
@@ -234,9 +337,21 @@ function createVisualization(paths) {
         if (count === 0) return;
 
         const isCdtm = stationName === "CDTM";
-        const nodeColor = isCdtm ? FIELD_COLORS["CDTM"] : "#1e293b";
-        const nodeSize = isCdtm ? Math.min(50, 15 + count * 0.03) : Math.min(30, 10 + count * 0.02);
-        const label = isCdtm ? "CDTM" : stationName.split('|').join('<br>');
+        let nodeColor, label;
+
+        if (isCdtm) {
+            nodeColor = FIELD_COLORS["CDTM"];
+            label = "CDTM";
+        } else if (stationName.startsWith("High School")) {
+            nodeColor = "#64748b";
+            label = "High School";
+        } else {
+            const [degree, field] = stationName.split('|');
+            nodeColor = FIELD_COLORS[field] || "#1e293b";
+            label = `${degree}<br>${field}`;
+        }
+
+        const nodeSize = isCdtm ? Math.min(60, 20 + count * 0.05) : Math.min(40, 12 + count * 0.03);
 
         traces.push({
             x: [sx],
@@ -248,9 +363,9 @@ function createVisualization(paths) {
                 line: { color: 'white', width: 2 }
             },
             text: label,
-            textposition: sy > 3.5 ? "top center" : "bottom center",
-            textfont: { size: isCdtm ? 10 : 8, color: nodeColor },
-            hovertemplate: `<b>${label}</b><br>${count} alumni<extra></extra>`,
+            textposition: sy > 4 ? "top center" : "bottom center",
+            textfont: { size: isCdtm ? 11 : 9, color: nodeColor },
+            hovertemplate: `<b>${stationName.replace('|', ' - ')}</b><br>${count} connections<extra></extra>`,
             showlegend: false
         });
     });
@@ -263,13 +378,13 @@ function createVisualization(paths) {
             font: { size: 24 }
         },
         xaxis: {
-            range: [-0.5, 8],
+            range: [-0.5, 8.5],
             showgrid: false,
             showticklabels: false,
             zeroline: false
         },
         yaxis: {
-            range: [-0.5, 8],
+            range: [-0.5, 9],
             showgrid: false,
             showticklabels: false,
             zeroline: false
@@ -278,7 +393,51 @@ function createVisualization(paths) {
         paper_bgcolor: 'white',
         height: 800,
         hovermode: 'closest',
-        hoverdistance: 20
+        hoverdistance: 20,
+        annotations: [
+            {
+                x: 0.5, y: -0.3,
+                xref: 'x', yref: 'y',
+                text: 'Pre-Undergrad',
+                showarrow: false,
+                font: { size: 10, color: '#666' }
+            },
+            {
+                x: 1.5, y: -0.3,
+                xref: 'x', yref: 'y',
+                text: 'Undergraduate',
+                showarrow: false,
+                font: { size: 10, color: '#666' }
+            },
+            {
+                x: 2.5, y: -0.3,
+                xref: 'x', yref: 'y',
+                text: 'Exchange',
+                showarrow: false,
+                font: { size: 10, color: '#666' }
+            },
+            {
+                x: 4.0, y: -0.3,
+                xref: 'x', yref: 'y',
+                text: 'CDTM',
+                showarrow: false,
+                font: { size: 10, color: '#f59e0b', weight: 'bold' }
+            },
+            {
+                x: 5.5, y: -0.3,
+                xref: 'x', yref: 'y',
+                text: 'Graduate',
+                showarrow: false,
+                font: { size: 10, color: '#666' }
+            },
+            {
+                x: 7.5, y: -0.3,
+                xref: 'x', yref: 'y',
+                text: 'Doctorate',
+                showarrow: false,
+                font: { size: 10, color: '#666' }
+            }
+        ]
     };
 
     return { data: traces, layout };
@@ -308,9 +467,22 @@ function updateVisualization() {
 
             // Update stats
             const total = paths.length;
-            const withCdtm = paths.filter(p => p.nodes.some(n => n.is_cdtm)).length;
+            const withCdtm = paths.filter(p => p.has_cdtm).length;
+
+            // Count fields
+            const fieldCounts = {};
+            paths.forEach(p => {
+                fieldCounts[p.primary_field] = (fieldCounts[p.primary_field] || 0) + 1;
+            });
+
+            let fieldStats = Object.entries(fieldCounts)
+                .sort((a, b) => b[1] - a[1])
+                .slice(0, 5)
+                .map(([field, count]) => `${field}: ${count}`)
+                .join(' | ');
+
             const statsHtml = total > 0
-                ? `<strong>📊 Statistics:</strong> ${total} alumni paths shown (${withCdtm} include CDTM - ${Math.round(withCdtm/total*100)}%)`
+                ? `<strong>📊 Statistics:</strong> ${total} alumni paths shown (${withCdtm} include CDTM - ${Math.round(withCdtm/total*100)}%)<br><small>${fieldStats}</small>`
                 : '<strong>📊 Statistics:</strong> No alumni paths match the selected filters';
             document.getElementById('stats').innerHTML = statsHtml;
 
@@ -413,19 +585,20 @@ async function init() {
     try {
         console.log('Loading data...');
 
-        // Load alumni data
-        const alumniResponse = await fetch('data/cdtm_alumni_consolidated.json');
-        alumniData = await alumniResponse.json();
-        console.log(`Loaded ${alumniData.length} alumni profiles`);
+        // Load CSV data
+        const csvResponse = await fetch('data/educational_paths.csv');
+        const csvText = await csvResponse.text();
+        educationData = parseCSV(csvText);
+        console.log(`Loaded ${educationData.length} education entries`);
 
-        // Load schools data
-        const schoolsResponse = await fetch('data/unique_schools_normalized.json');
-        schoolsData = await schoolsResponse.json();
-        console.log(`Loaded ${Object.keys(schoolsData).length} schools`);
+        // Group by alumni
+        groupedAlumni = groupByAlumni(educationData);
+        const alumniCount = Object.keys(groupedAlumni).length;
+        console.log(`Grouped into ${alumniCount} alumni profiles`);
 
         // Update subtitle
         document.getElementById('subtitle').textContent =
-            `Interactive visualization of ${alumniData.length} CDTM alumni education journeys`;
+            `Interactive visualization of ${alumniCount} CDTM alumni education journeys`;
 
         // Set up event listeners
         document.getElementById('fieldFilter').addEventListener('change', updateFilters);
