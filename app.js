@@ -20,33 +20,29 @@ const FIELD_COLORS = {
     "Design, Architecture & Media": "#a855f7",
     "Law & Legal Studies": "#64748b",
     "Education & Other": "#94a3b8",
-    "Other": "#94a3b8",
-    "CDTM": "#f59e0b"
+    "Other": "#94a3b8"
 };
 
 // Station positions - based on normalized_degree levels
 // X-axis: Education stage (left to right = earlier to later)
 // Y-axis: Field categories
 const STATIONS = {
-    // CDTM (center position)
-    "CDTM": [4.0, 4.5],
-
     // High School / Pre-University (leftmost)
     "High School|Other": [0.5, 1.0],
 
     // Undergraduate level
-    "Undergraduate|Computer Science & AI": [1.5, 8.0],
-    "Undergraduate|Business & Economics": [1.5, 6.5],
-    "Undergraduate|Engineering": [1.5, 5.0],
-    "Undergraduate|Information Systems & HCI": [1.5, 3.5],
-    "Undergraduate|Natural Sciences & Mathematics": [1.5, 2.0],
-    "Undergraduate|Other": [1.5, 0.5],
+    "Undergraduate|Computer Science & AI": [2.0, 8.0],
+    "Undergraduate|Business & Economics": [2.0, 6.5],
+    "Undergraduate|Engineering": [2.0, 5.0],
+    "Undergraduate|Information Systems & HCI": [2.0, 3.5],
+    "Undergraduate|Natural Sciences & Mathematics": [2.0, 2.0],
+    "Undergraduate|Other": [2.0, 0.5],
 
     // Exchange/Visiting (between undergrad and grad)
-    "Exchange|Computer Science & AI": [2.5, 7.5],
-    "Exchange|Business & Economics": [2.5, 6.0],
-    "Exchange|Engineering": [2.5, 4.5],
-    "Exchange|Other": [2.5, 1.5],
+    "Exchange|Computer Science & AI": [3.5, 7.5],
+    "Exchange|Business & Economics": [3.5, 6.0],
+    "Exchange|Engineering": [3.5, 4.5],
+    "Exchange|Other": [3.5, 1.5],
 
     // Graduate level
     "Graduate|Computer Science & AI": [5.5, 8.0],
@@ -116,7 +112,7 @@ function mapDegreeToStation(normalizedDegree) {
         'Pre-University': 'High School',
         'Exchange & Summer Programs': 'Exchange',
         'Visiting scholar / student researcher': 'Exchange',
-        'Honours & Elite Add-on Degrees': 'CDTM', // CDTM is typically this
+        'Honours & Elite Add-on Degrees': null, // Skip CDTM/Honours degrees
         'Certificates & Professional Training': null, // Skip
         'Vocational & Apprenticeships': null, // Skip
         'other': null // Skip
@@ -144,12 +140,6 @@ function mapFieldToStation(normalizedField) {
     };
 
     return fieldMap[normalizedField] || 'Other';
-}
-
-// Check if this is a CDTM entry
-function isCDTM(row) {
-    const school = (row.school || '').toUpperCase();
-    return school.includes('CDTM') || school.includes('CENTER FOR DIGITAL TECHNOLOGY');
 }
 
 // Sigmoid curve for smooth path lines
@@ -206,7 +196,6 @@ function extractPaths(filters = {}) {
         if (education.length === 0) return;
 
         const nodes = [];
-        let hasCDTM = false;
         let primaryField = 'Other';
 
         // Sort education by start date (chronological)
@@ -218,20 +207,8 @@ function extractPaths(filters = {}) {
 
         // Process each education entry
         sortedEducation.forEach(edu => {
-            // Check for CDTM
-            if (isCDTM(edu)) {
-                hasCDTM = true;
-                nodes.push({
-                    degree: 'CDTM',
-                    field: 'CDTM',
-                    is_cdtm: true,
-                    school: edu.school
-                });
-                return;
-            }
-
             const stationDegree = mapDegreeToStation(edu.normalized_degree);
-            if (!stationDegree) return; // Skip entries we can't map
+            if (!stationDegree) return; // Skip entries we can't map (including CDTM/Honours)
 
             const stationField = mapFieldToStation(edu.normalized_field);
 
@@ -247,7 +224,6 @@ function extractPaths(filters = {}) {
             nodes.push({
                 degree: stationDegree,
                 field: stationField,
-                is_cdtm: false,
                 school: edu.school,
                 original_degree: edu.normalized_degree,
                 original_field: edu.normalized_field
@@ -260,8 +236,7 @@ function extractPaths(filters = {}) {
                 primary_field: primaryField,
                 name: person.full_name || 'Unknown',
                 headline: person.headline || '',
-                linkedin_url: person.linkedin_url || '',
-                has_cdtm: hasCDTM
+                linkedin_url: person.linkedin_url || ''
             });
         }
     });
@@ -293,8 +268,8 @@ function createVisualization(paths) {
             const current = pathNodes[i];
             const next = pathNodes[i + 1];
 
-            const currentKey = current.is_cdtm ? "CDTM" : `${current.degree}|${current.field}`;
-            const nextKey = next.is_cdtm ? "CDTM" : `${next.degree}|${next.field}`;
+            const currentKey = `${current.degree}|${current.field}`;
+            const nextKey = `${next.degree}|${next.field}`;
 
             if (!STATIONS[currentKey] || !STATIONS[nextKey]) continue;
 
@@ -307,8 +282,8 @@ function createVisualization(paths) {
 
             const curve = sigmoidCurve(x1, y1 + yJitterStart, x2, y2 + yJitterEnd);
 
-            const lineColor = (current.is_cdtm || next.is_cdtm) ? FIELD_COLORS["CDTM"] : color;
-            const lineAlpha = (current.is_cdtm || next.is_cdtm) ? 0.4 : 0.25;
+            const lineColor = color;
+            const lineAlpha = 0.25;
 
             traces.push({
                 x: curve.xs,
@@ -336,13 +311,9 @@ function createVisualization(paths) {
         const count = stationCounts[stationName] || 0;
         if (count === 0) return;
 
-        const isCdtm = stationName === "CDTM";
         let nodeColor, label;
 
-        if (isCdtm) {
-            nodeColor = FIELD_COLORS["CDTM"];
-            label = "CDTM";
-        } else if (stationName.startsWith("High School")) {
+        if (stationName.startsWith("High School")) {
             nodeColor = "#64748b";
             label = "High School";
         } else {
@@ -351,7 +322,7 @@ function createVisualization(paths) {
             label = `${degree}<br>${field}`;
         }
 
-        const nodeSize = isCdtm ? Math.min(60, 20 + count * 0.05) : Math.min(40, 12 + count * 0.03);
+        const nodeSize = Math.min(40, 12 + count * 0.03);
 
         traces.push({
             x: [sx],
@@ -364,7 +335,7 @@ function createVisualization(paths) {
             },
             text: label,
             textposition: sy > 4 ? "top center" : "bottom center",
-            textfont: { size: isCdtm ? 11 : 9, color: nodeColor },
+            textfont: { size: 9, color: nodeColor },
             hovertemplate: `<b>${stationName.replace('|', ' - ')}</b><br>${count} connections<extra></extra>`,
             showlegend: false
         });
@@ -398,30 +369,23 @@ function createVisualization(paths) {
             {
                 x: 0.5, y: -0.3,
                 xref: 'x', yref: 'y',
-                text: 'Pre-Undergrad',
+                text: 'High School',
                 showarrow: false,
                 font: { size: 10, color: '#666' }
             },
             {
-                x: 1.5, y: -0.3,
+                x: 2.0, y: -0.3,
                 xref: 'x', yref: 'y',
                 text: 'Undergraduate',
                 showarrow: false,
                 font: { size: 10, color: '#666' }
             },
             {
-                x: 2.5, y: -0.3,
+                x: 3.5, y: -0.3,
                 xref: 'x', yref: 'y',
                 text: 'Exchange',
                 showarrow: false,
                 font: { size: 10, color: '#666' }
-            },
-            {
-                x: 4.0, y: -0.3,
-                xref: 'x', yref: 'y',
-                text: 'CDTM',
-                showarrow: false,
-                font: { size: 10, color: '#f59e0b', weight: 'bold' }
             },
             {
                 x: 5.5, y: -0.3,
@@ -467,7 +431,6 @@ function updateVisualization() {
 
             // Update stats
             const total = paths.length;
-            const withCdtm = paths.filter(p => p.has_cdtm).length;
 
             // Count fields
             const fieldCounts = {};
@@ -482,7 +445,7 @@ function updateVisualization() {
                 .join(' | ');
 
             const statsHtml = total > 0
-                ? `<strong>📊 Statistics:</strong> ${total} alumni paths shown (${withCdtm} include CDTM - ${Math.round(withCdtm/total*100)}%)<br><small>${fieldStats}</small>`
+                ? `<strong>📊 Statistics:</strong> ${total} alumni paths shown<br><small>${fieldStats}</small>`
                 : '<strong>📊 Statistics:</strong> No alumni paths match the selected filters';
             document.getElementById('stats').innerHTML = statsHtml;
 
